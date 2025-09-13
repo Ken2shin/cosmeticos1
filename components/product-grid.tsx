@@ -12,36 +12,57 @@ interface ProductGridProps {
 export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [forceRefresh, setForceRefresh] = useState(0)
 
   useEffect(() => {
     fetchProducts()
-  }, []) // Removed any dependencies that could cause loops
+  }, [forceRefresh])
 
   useEffect(() => {
     const handleProductUpdate = () => {
       console.log("[v0] Product update detected, refreshing grid")
+      setForceRefresh((prev) => prev + 1)
       fetchProducts()
     }
 
-    // Listen for custom events from other components
+    const handleStockUpdate = () => {
+      console.log("[v0] Stock update detected, forcing refresh")
+      setForceRefresh((prev) => prev + 1)
+      fetchProducts()
+    }
+
     window.addEventListener("productCreated", handleProductUpdate)
     window.addEventListener("productDeleted", handleProductUpdate)
     window.addEventListener("productUpdated", handleProductUpdate)
+    window.addEventListener("stockUpdated", handleStockUpdate)
+    window.addEventListener("inventoryChanged", handleStockUpdate)
+
+    const intervalId = setInterval(() => {
+      console.log("[v0] Brute force refresh - checking for stock updates")
+      fetchProducts()
+    }, 10000)
 
     return () => {
       window.removeEventListener("productCreated", handleProductUpdate)
       window.removeEventListener("productDeleted", handleProductUpdate)
       window.removeEventListener("productUpdated", handleProductUpdate)
+      window.removeEventListener("stockUpdated", handleStockUpdate)
+      window.removeEventListener("inventoryChanged", handleStockUpdate)
+      clearInterval(intervalId)
     }
   }, [])
 
   const fetchProducts = async () => {
     try {
-      console.log("[v0] Fetching products for grid")
-      const response = await fetch("/api/products", {
+      console.log("[v0] Fetching products for grid - Force refresh:", forceRefresh)
+      const timestamp = Date.now()
+      const random = Math.random()
+      const response = await fetch(`/api/products?t=${timestamp}&r=${random}`, {
         cache: "no-store",
         headers: {
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       })
 
@@ -50,7 +71,12 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
       }
 
       const data = await response.json()
-      console.log("[v0] Products fetched for grid:", data?.length || 0)
+      console.log(
+        "[v0] Products fetched for grid:",
+        data?.length || 0,
+        "Stock data:",
+        data?.map((p: Product) => ({ name: p.name, stock: p.stock_quantity })),
+      )
       setProducts(data || [])
     } catch (error) {
       console.error("[v0] Error fetching products:", error)
@@ -61,11 +87,9 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   }
 
   const filteredProducts = products.filter((product) => {
-    // Category filter
     const categoryMatch =
       selectedCategory === "all" || (product.category?.toLowerCase() || "") === selectedCategory.toLowerCase()
 
-    // Search filter
     const searchMatch =
       searchTerm === "" ||
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

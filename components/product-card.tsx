@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import type { Product } from "@/types/product"
 import { ShoppingCart, Heart } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useCart } from "@/contexts/cart-context"
 
 interface ProductCardProps {
@@ -18,12 +18,31 @@ export function ProductCard({ product }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [fallbackAttempts, setFallbackAttempts] = useState(0)
+  const [localStock, setLocalStock] = useState(product.stock_quantity)
   const { dispatch } = useCart()
+
+  useEffect(() => {
+    setLocalStock(product.stock_quantity)
+    console.log("[v0] ProductCard stock updated:", product.name, "Stock:", product.stock_quantity)
+  }, [product.stock_quantity, product.name])
 
   const handleAddToCart = async () => {
     setIsAdding(true)
     await new Promise((resolve) => setTimeout(resolve, 800))
     dispatch({ type: "ADD_ITEM", payload: product })
+
+    if (localStock > 0) {
+      const newStock = localStock - 1
+      setLocalStock(newStock)
+      console.log("[v0] Local stock decremented:", product.name, "New stock:", newStock)
+
+      window.dispatchEvent(
+        new CustomEvent("stockUpdated", {
+          detail: { productId: product.id, newStock },
+        }),
+      )
+    }
+
     setIsAdding(false)
   }
 
@@ -117,9 +136,14 @@ export function ProductCard({ product }: ProductCardProps) {
               className={`w-4 h-4 transition-colors duration-300 ${isLiked ? "fill-red-500 text-red-500" : "text-gray-600"}`}
             />
           </Button>
-          {product.stock_quantity < 5 && (
+          {localStock < 5 && localStock > 0 && (
             <Badge variant="destructive" className="absolute bottom-3 left-3 animate-bounce">
-              ¡Últimas {product.stock_quantity}!
+              ¡Últimas {localStock}!
+            </Badge>
+          )}
+          {localStock === 0 && (
+            <Badge variant="destructive" className="absolute bottom-3 left-3 animate-pulse bg-red-600">
+              ¡AGOTADO!
             </Badge>
           )}
         </div>
@@ -143,19 +167,19 @@ export function ProductCard({ product }: ProductCardProps) {
           onClick={handleAddToCart}
           className="w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
           size="sm"
-          disabled={isAdding || product.stock_quantity === 0}
+          disabled={isAdding || localStock === 0}
         >
           {isAdding ? (
             <>
               <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
               Agregando...
             </>
-          ) : product.stock_quantity === 0 ? (
+          ) : localStock === 0 ? (
             "Agotado"
           ) : (
             <>
               <ShoppingCart className="w-4 h-4 mr-2" />
-              Agregar al Carrito
+              Agregar al Carrito ({localStock} disponibles)
             </>
           )}
         </Button>
