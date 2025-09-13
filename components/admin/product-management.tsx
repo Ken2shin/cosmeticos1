@@ -19,10 +19,29 @@ export function ProductManagement() {
 
   useEffect(() => {
     fetchProducts()
+
+    const handleProductCreated = () => {
+      console.log("[v0] Product created event received, refreshing...")
+      fetchProducts()
+    }
+
+    const handleProductDeleted = () => {
+      console.log("[v0] Product deleted event received, refreshing...")
+      fetchProducts()
+    }
+
+    window.addEventListener("productCreated", handleProductCreated)
+    window.addEventListener("productDeleted", handleProductDeleted)
+
+    return () => {
+      window.removeEventListener("productCreated", handleProductCreated)
+      window.removeEventListener("productDeleted", handleProductDeleted)
+    }
   }, [])
 
   const fetchProducts = async () => {
     try {
+      console.log("[v0] Fetching products for management...")
       const response = await fetch("/api/admin/products", {
         cache: "no-store",
         headers: {
@@ -31,14 +50,16 @@ export function ProductManagement() {
       })
 
       if (!response.ok) {
+        console.error("[v0] Failed to fetch products:", response.status)
         setProducts([])
         return
       }
 
       const data = await response.json()
+      console.log("[v0] Products fetched for management:", data.length)
       setProducts(Array.isArray(data) ? data : [])
     } catch (error) {
-      console.error("Error fetching products:", error)
+      console.error("[v0] Error fetching products:", error)
       setProducts([])
     } finally {
       setLoading(false)
@@ -126,8 +147,10 @@ export function ProductManagement() {
     setShowForm(false)
     setEditingProduct(null)
     if (shouldRefresh) {
-      window.dispatchEvent(new CustomEvent("productCreated"))
-      fetchProducts()
+      console.log("[v0] Form closed with refresh request")
+      setTimeout(() => {
+        fetchProducts()
+      }, 100)
     }
   }
 
@@ -187,6 +210,14 @@ export function ProductManagement() {
                       src={product.image_url || "/placeholder.svg"}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      onError={(e) => {
+                        console.log("[v0] Image failed to load:", product.image_url)
+                        const target = e.target as HTMLImageElement
+                        target.src = `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
+                      }}
+                      onLoad={() => {
+                        console.log("[v0] Image loaded successfully:", product.image_url)
+                      }}
                     />
                   </div>
                 )}

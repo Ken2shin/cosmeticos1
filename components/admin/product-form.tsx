@@ -47,11 +47,25 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch("/api/categories")
-      const data = await response.json()
-      setCategories(data)
+      console.log("[v0] Fetching categories for form...")
+      const response = await fetch("/api/categories", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log("[v0] Categories fetched for form:", data.length)
+        setCategories(data)
+      } else {
+        console.error("[v0] Failed to fetch categories:", response.status)
+        setCategories([])
+      }
     } catch (error) {
-      console.error("Error fetching categories:", error)
+      console.error("[v0] Error fetching categories:", error)
+      setCategories([])
     }
   }, [])
 
@@ -76,7 +90,14 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }, [product])
 
   const uploadFile = async (file: File): Promise<string> => {
-    console.log("[v0] Starting file upload:", file.name)
+    console.log("[v0] Starting file upload:", file.name, "Size:", file.size, "Type:", file.type)
+
+    if (file.size > 10 * 1024 * 1024) {
+      // 10MB limit
+      console.warn("[v0] File too large, using fallback")
+      return `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
+    }
+
     const formData = new FormData()
     formData.append("file", file)
 
@@ -89,17 +110,19 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       console.log("[v0] Upload response status:", response.status)
 
       if (!response.ok) {
-        console.error("[v0] Upload failed, using fallback")
-        const fallbackUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-${file.name.split(".")[0]}-cosmetic`
+        console.error("[v0] Upload failed with status:", response.status)
+        const fallbackUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
+        console.log("[v0] Using fallback URL:", fallbackUrl)
         return fallbackUrl
       }
 
       const result = await response.json()
-      console.log("[v0] Upload successful:", result)
+      console.log("[v0] Upload successful, received URL:", result.url)
       return result.url
     } catch (error) {
       console.error("[v0] Upload error, using emergency fallback:", error)
-      const emergencyUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-emergency-cosmetic`
+      const emergencyUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent("beauty cosmetic product " + Date.now())}`
+      console.log("[v0] Using emergency URL:", emergencyUrl)
       return emergencyUrl
     }
   }
@@ -152,15 +175,16 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       let imageUrl = formData.image_url
 
       if (selectedFile) {
-        console.log("[v0] Uploading selected file")
+        console.log("[v0] Processing selected file for upload:", selectedFile.name)
         try {
           imageUrl = await uploadFile(selectedFile)
-          console.log("[v0] Upload successful, got URL:", imageUrl)
+          console.log("[v0] File upload completed, final URL:", imageUrl)
         } catch (uploadError) {
-          console.error("[v0] Upload failed, continuing with default:", uploadError)
+          console.error("[v0] Upload failed, using generated fallback:", uploadError)
           imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
         }
       } else if (!imageUrl) {
+        console.log("[v0] No file selected, generating placeholder URL")
         imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
       }
 
@@ -173,7 +197,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         sku: finalSKU,
       }
 
-      console.log("[v0] Submitting product data with image:", productData)
+      console.log("[v0] Submitting product data:", {
+        ...productData,
+        image_url: imageUrl.substring(0, 100) + (imageUrl.length > 100 ? "..." : ""),
+      })
 
       const url = product ? `/api/admin/products/${product.id}` : "/api/admin/products"
       const method = product ? "PUT" : "POST"
@@ -190,7 +217,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       }
 
       const savedProduct = await response.json()
-      console.log("[v0] Product saved with image URL:", savedProduct.image_url)
+      console.log("[v0] Product saved successfully with image:", savedProduct.image_url)
 
       if (product) {
         window.dispatchEvent(new CustomEvent("productUpdated", { detail: savedProduct }))
@@ -208,8 +235,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         })
       }
 
-      console.log("[v0] Product saved successfully, refreshing parent component")
-      onClose(true)
+      console.log("[v0] Triggering UI refresh...")
+      setTimeout(() => {
+        onClose(true)
+      }, 100)
     } catch (error) {
       console.error("[v0] Error saving product:", error)
       toast({
@@ -226,7 +255,12 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
     <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
       <CardHeader>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => onClose()} className="hover:scale-110 transition-transform">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onClose(false)}
+            className="hover:scale-110 transition-transform"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <CardTitle className="bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
@@ -381,6 +415,26 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
           <div className="space-y-2">
             <Label>Imagen del Producto</Label>
             <FileUpload onFileSelect={setSelectedFile} currentImage={formData.image_url} />
+            {(selectedFile || formData.image_url) && (
+              <div className="mt-2">
+                <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden border">
+                  <img
+                    src={selectedFile ? URL.createObjectURL(selectedFile) : formData.image_url}
+                    alt="Vista previa"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.log("[v0] Preview image failed to load")
+                      const target = e.target as HTMLImageElement
+                      target.src = `/placeholder.svg?height=128&width=128&query=preview-${formData.name || "product"}`
+                    }}
+                    onLoad={() => {
+                      console.log("[v0] Preview image loaded successfully")
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Vista previa de la imagen</p>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -403,7 +457,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => onClose()}
+              onClick={() => onClose(false)}
               className="hover:scale-105 transition-transform bg-transparent"
             >
               Cancelar
