@@ -14,7 +14,7 @@ export function ProductManagement() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -73,15 +73,18 @@ export function ProductManagement() {
 
   const handleDelete = async (productId: number) => {
     if (confirm("¿Estás seguro de que quieres eliminar este producto?")) {
-      setDeleteLoading(true)
-
-      const originalProducts = [...products]
-      setProducts((prev) => prev.filter((p) => p.id !== productId))
+      setDeleteLoading(productId)
 
       try {
+        console.log("[v0] Attempting to delete product:", productId)
         const response = await fetch(`/api/admin/products/${productId}`, { method: "DELETE" })
 
         if (response.ok) {
+          const result = await response.json()
+          console.log("[v0] Product deleted successfully:", result)
+
+          setProducts((prev) => prev.filter((p) => p.id !== productId))
+
           window.dispatchEvent(new CustomEvent("productDeleted", { detail: { productId } }))
 
           toast({
@@ -90,19 +93,19 @@ export function ProductManagement() {
             variant: "default",
           })
         } else {
-          setProducts(originalProducts)
-          throw new Error("Error al eliminar el producto")
+          const errorData = await response.json()
+          console.error("[v0] Delete failed:", errorData)
+          throw new Error(errorData.error || "Error al eliminar el producto")
         }
       } catch (error) {
-        console.error("Error deleting product:", error)
-        setProducts(originalProducts)
+        console.error("[v0] Error deleting product:", error)
         toast({
           title: "Error al eliminar",
-          description: "No se pudo eliminar el producto. Intenta de nuevo.",
+          description: error instanceof Error ? error.message : "No se pudo eliminar el producto. Intenta de nuevo.",
           variant: "destructive",
         })
       } finally {
-        setDeleteLoading(false)
+        setDeleteLoading(null)
       }
     }
   }
@@ -173,7 +176,7 @@ export function ProductManagement() {
         </Button>
       </div>
 
-      {loading || deleteLoading ? (
+      {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="animate-pulse">
@@ -208,7 +211,7 @@ export function ProductManagement() {
                   <img
                     src={
                       product.image_url ||
-                      `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
+                      `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase() || "/placeholder.svg"}-cosmetic`
                     }
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
@@ -216,7 +219,6 @@ export function ProductManagement() {
                       console.log("[v0] Image failed to load, trying fallbacks:", product.image_url)
                       const target = e.target as HTMLImageElement
 
-                      // Try multiple fallback strategies
                       if (!target.src.includes("placeholder.svg")) {
                         target.src = `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
                       } else if (!target.src.includes("fallback")) {
@@ -268,9 +270,13 @@ export function ProductManagement() {
                     size="sm"
                     onClick={() => handleDelete(product.id)}
                     className="text-destructive hover:text-destructive hover:bg-red-50 hover:border-red-300 transition-colors"
-                    disabled={deleteLoading}
+                    disabled={deleteLoading === product.id}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deleteLoading === product.id ? (
+                      <div className="w-4 h-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </CardContent>

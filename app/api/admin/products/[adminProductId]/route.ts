@@ -1,49 +1,48 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
-import { notifyProductUpdated, notifyProductDeleted } from "@/lib/websocket-server";
+import { type NextRequest, NextResponse } from "next/server"
+import { neon } from "@neondatabase/serverless"
 
-const sql = neon(process.env.DATABASE_URL!);
+const sql = neon(process.env.DATABASE_URL!)
 
 export async function GET(request: NextRequest, { params }: { params: { adminProductId: string } }) {
   try {
-    console.log("[v0] Fetching admin product:", params.adminProductId);
+    console.log("[v0] Fetching admin product:", params.adminProductId)
 
-    const productId = Number.parseInt(params.adminProductId);
+    const productId = Number.parseInt(params.adminProductId)
     if (isNaN(productId)) {
-      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
     }
 
     const products = await sql`
       SELECT * FROM products WHERE id = ${productId}
-    `;
+    `
 
     if (products.length === 0) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    console.log("[v0] Admin product fetched successfully");
-    return NextResponse.json(products[0]);
+    console.log("[v0] Admin product fetched successfully")
+    return NextResponse.json(products[0])
   } catch (error) {
-    console.error("[v0] Error fetching admin product:", error);
-    return NextResponse.json({ error: "Failed to fetch product" }, { status: 500 });
+    console.error("[v0] Error fetching admin product:", error)
+    return NextResponse.json({ error: "Failed to fetch product" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { adminProductId: string } }) {
   try {
-    console.log("[v0] Updating admin product:", params.adminProductId);
+    console.log("[v0] Updating admin product:", params.adminProductId)
 
-    const productId = Number.parseInt(params.adminProductId);
+    const productId = Number.parseInt(params.adminProductId)
     if (isNaN(productId)) {
-      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
     }
 
-    const body = await request.json();
-    const { name, description, price, category, image_url, sku, stock_quantity, is_active } = body;
+    const body = await request.json()
+    const { name, description, price, category, image_url, sku, stock_quantity, is_active } = body
 
     // Validate required fields
     if (!name || !price) {
-      return NextResponse.json({ error: "Name and price are required" }, { status: 400 });
+      return NextResponse.json({ error: "Name and price are required" }, { status: 400 })
     }
 
     // Validate price range
@@ -53,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: { params: { adminPro
           error: "Price cannot exceed $99,999,999.99",
         },
         { status: 400 },
-      );
+      )
     }
 
     const updatedProducts = await sql`
@@ -70,66 +69,54 @@ export async function PUT(request: NextRequest, { params }: { params: { adminPro
         updated_at = NOW()
       WHERE id = ${productId}
       RETURNING *
-    `;
+    `
 
     if (updatedProducts.length === 0) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    const updatedProduct = updatedProducts[0];
-    console.log("[v0] Admin product updated successfully");
+    const updatedProduct = updatedProducts[0]
+    console.log("[v0] Admin product updated successfully")
 
-    try {
-      notifyProductUpdated(updatedProduct);
-      console.log("[v0] Real-time notification sent for product update");
-    } catch (wsError) {
-      console.error("[v0] WebSocket notification failed:", wsError);
-      // Don't fail the request if WebSocket fails
-    }
-
-    return NextResponse.json(updatedProduct);
+    return NextResponse.json(updatedProduct)
   } catch (error) {
-    console.error("[v0] Error updating admin product:", error);
-    return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
+    console.error("[v0] Error updating admin product:", error)
+    return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { adminProductId: string } }) {
   try {
-    console.log("[v0] Deleting admin product:", params.adminProductId);
+    console.log("[v0] Deleting admin product:", params.adminProductId)
 
-    const productId = Number.parseInt(params.adminProductId);
+    const productId = Number.parseInt(params.adminProductId)
     if (isNaN(productId)) {
-      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
     }
 
-    // Check if product exists
     const existingProducts = await sql`
       SELECT id FROM products WHERE id = ${productId}
-    `;
+    `
 
     if (existingProducts.length === 0) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    // Delete the product
-    await sql`
+    const deleteResult = await sql`
       DELETE FROM products WHERE id = ${productId}
-    `;
+    `
 
-    console.log("[v0] Admin product deleted successfully");
+    console.log("[v0] Admin product deleted successfully:", deleteResult)
 
-    try {
-      notifyProductDeleted(productId.toString()); // Force convert to string
-      console.log("[v0] Real-time notification sent for product deletion");
-    } catch (wsError) {
-      console.error("[v0] WebSocket notification failed:", wsError);
-      // Don't fail the request if WebSocket fails
-    }
-
-    return NextResponse.json({ message: "Product deleted successfully" });
+    return NextResponse.json({ message: "Product deleted successfully", productId })
   } catch (error) {
-    console.error("[v0] Error deleting admin product:", error);
-    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 });
+    console.error("[v0] Error deleting admin product:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to delete product",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }
