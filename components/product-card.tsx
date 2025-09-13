@@ -17,6 +17,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [fallbackAttempts, setFallbackAttempts] = useState(0)
   const { dispatch } = useCart()
 
   const handleAddToCart = async () => {
@@ -27,25 +28,82 @@ export function ProductCard({ product }: ProductCardProps) {
   }
 
   const getImageUrl = () => {
-    if (!product.image_url || imageError) {
-      return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " beauty product")}`
+    console.log(
+      "[v0] Client ProductCard - Getting image for:",
+      product.name,
+      "URL:",
+      product.image_url,
+      "Error:",
+      imageError,
+      "Attempts:",
+      fallbackAttempts,
+    )
+
+    // Strategy 1: Use original image_url if available and no error
+    if (product.image_url && !imageError && fallbackAttempts === 0) {
+      // Check if it's a blob URL or base64
+      if (product.image_url.startsWith("data:") || product.image_url.includes("blob.vercel-storage.com")) {
+        return product.image_url
+      }
+      // If it's a placeholder URL, enhance it
+      if (product.image_url.includes("placeholder.svg")) {
+        return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`
+      }
+      return product.image_url
     }
-    return product.image_url
+
+    // Strategy 2: Enhanced placeholder with product details
+    const enhancedPlaceholder = `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(
+      product.name + " " + (product.category || "beauty") + " cosmetic product",
+    )}&color=f472b6&bg=fdf2f8&text=${encodeURIComponent(product.name)}`
+
+    return enhancedPlaceholder
+  }
+
+  const handleImageError = () => {
+    console.log("[v0] Client ProductCard - Image error for:", product.name, "Attempts:", fallbackAttempts)
+    setFallbackAttempts((prev) => prev + 1)
+    setImageError(true)
+
+    // Force re-render with new fallback
+    setTimeout(() => {
+      setImageError(false)
+    }, 100)
   }
 
   return (
     <Card className="group hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 animate-in fade-in-0 slide-in-from-bottom-4 border-0 bg-white/80 backdrop-blur-sm">
       <CardContent className="p-0">
         <div className="relative overflow-hidden rounded-t-lg">
-          <Image
-            src={getImageUrl() || "/placeholder.svg"}
-            alt={product.name}
-            width={300}
-            height={300}
-            className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-700"
-            onError={() => setImageError(true)}
-            unoptimized={getImageUrl().includes("placeholder.svg")}
-          />
+          <div className="relative w-full h-64 bg-gradient-to-br from-pink-50 to-rose-100">
+            <Image
+              src={getImageUrl() || "/placeholder.svg"}
+              alt={product.name}
+              width={300}
+              height={300}
+              className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-700"
+              onError={handleImageError}
+              unoptimized={true}
+              priority={false}
+              style={{
+                objectFit: "cover",
+                backgroundColor: "#fdf2f8",
+              }}
+            />
+            {/* Fallback overlay if image fails */}
+            {imageError && fallbackAttempts > 2 && (
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-100 to-rose-200 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <div className="w-16 h-16 mx-auto mb-2 bg-pink-200 rounded-full flex items-center justify-center">
+                    <ShoppingCart className="w-8 h-8 text-pink-600" />
+                  </div>
+                  <p className="text-sm font-medium text-pink-800">{product.name}</p>
+                  <p className="text-xs text-pink-600">{product.category}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           <Badge className="absolute top-3 right-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 animate-pulse">
             {product.category}
           </Badge>
