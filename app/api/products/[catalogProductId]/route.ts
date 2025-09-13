@@ -1,58 +1,57 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { catalogProductId: string } }) {
   try {
-    const body = await request.json()
-    const { name, description, price, category, brand, image_url, stock_quantity, is_active } = body
-    const id = Number.parseInt(params.id)
+    const productId = Number.parseInt(params.catalogProductId)
 
-    const result = await sql`
-      UPDATE products 
-      SET name = ${name}, description = ${description}, price = ${price}, 
-          category = ${category}, brand = ${brand}, image_url = ${image_url},
-          stock_quantity = ${stock_quantity}, is_active = ${is_active},
-          updated_at = NOW()
-      WHERE id = ${id}
-      RETURNING *
+    if (isNaN(productId) || productId <= 0) {
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
+    }
+
+    const product = await sql`
+      SELECT 
+        p.*,
+        c.name as category_name
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.id = ${productId} AND p.is_active = true
     `
 
-    return NextResponse.json(result[0])
-  } catch (error) {
-    console.error("Error updating product:", error)
-    return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  try {
-    const id = Number.parseInt(params.id)
-
-    const existingProduct = await sql`SELECT id FROM products WHERE id = ${id}`
-
-    if (existingProduct.length === 0) {
+    if (product.length === 0) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    await sql`DELETE FROM order_items WHERE product_id = ${id}`
+    return NextResponse.json(product[0])
+  } catch (error) {
+    console.error("Error fetching product:", error)
+    return NextResponse.json({ error: "Failed to fetch product" }, { status: 500 })
+  }
+}
 
-    const result = await sql`DELETE FROM products WHERE id = ${id} RETURNING id`
+export async function PUT(request: Request, { params }: { params: { catalogProductId: string } }) {
+  try {
+    const productId = Number.parseInt(params.catalogProductId)
+    const { stock_quantity } = await request.json()
+
+    if (isNaN(productId) || productId <= 0) {
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
+    }
+
+    const result = await sql`
+      UPDATE products 
+      SET stock_quantity = ${stock_quantity}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${productId}
+      RETURNING *
+    `
 
     if (result.length === 0) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, message: "Product deleted successfully" })
+    return NextResponse.json(result[0])
   } catch (error) {
-    console.error("Error deleting product:", error)
-    if (error instanceof Error && error.message.includes("foreign key")) {
-      return NextResponse.json(
-        {
-          error: "Cannot delete product because it is referenced in orders",
-        },
-        { status: 400 },
-      )
-    }
-    return NextResponse.json({ error: "Failed to delete product" }, { status: 500 })
+    console.error("Error updating product:", error)
+    return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
   }
 }

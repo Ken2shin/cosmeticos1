@@ -1,9 +1,13 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { inventoryId: string } }) {
   try {
-    const inventoryId = Number.parseInt(params.id)
+    const inventoryId = Number.parseInt(params.inventoryId)
+
+    if (isNaN(inventoryId) || inventoryId <= 0) {
+      return NextResponse.json({ error: "Invalid inventory ID" }, { status: 400 })
+    }
 
     const inventory = await sql`
       SELECT 
@@ -11,7 +15,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         p.name as product_name,
         p.brand as product_brand,
         p.price as selling_price,
-        p.stock_quantity as current_stock
+        p.stock_quantity as current_stock,
+        p.cost_price,
+        (p.price - p.cost_price) as profit_per_unit,
+        ((p.price - p.cost_price) / p.price * 100) as profit_margin_percent
       FROM inventory i
       JOIN products p ON i.product_id = p.id
       WHERE i.id = ${inventoryId}
@@ -28,23 +35,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: { inventoryId: string } }) {
   try {
-    const inventoryId = Number.parseInt(params.id)
-    const { purchase_price, purchase_quantity, current_stock, supplier_name, supplier_contact, notes } =
-      await request.json()
+    const inventoryId = Number.parseInt(params.inventoryId)
+    const { purchase_price, purchase_quantity, supplier_name, supplier_contact, notes } = await request.json()
 
-    const inventoryRecord = await sql`
-      SELECT product_id FROM inventory WHERE id = ${inventoryId}
-    `
-
-    if (inventoryRecord.length === 0) {
-      return NextResponse.json({ error: "Inventory record not found" }, { status: 404 })
+    if (isNaN(inventoryId) || inventoryId <= 0) {
+      return NextResponse.json({ error: "Invalid inventory ID" }, { status: 400 })
     }
 
-    const productId = inventoryRecord[0].product_id
-
-    const inventory = await sql`
+    const result = await sql`
       UPDATE inventory 
       SET 
         purchase_price = ${purchase_price},
@@ -57,31 +57,33 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       RETURNING *
     `
 
-    if (current_stock !== undefined) {
-      await sql`
-        UPDATE products 
-        SET 
-          stock_quantity = ${current_stock},
-          cost_price = ${purchase_price},
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${productId}
-      `
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Inventory record not found" }, { status: 404 })
     }
 
-    return NextResponse.json(inventory[0])
+    return NextResponse.json(result[0])
   } catch (error) {
     console.error("Error updating inventory record:", error)
     return NextResponse.json({ error: "Failed to update inventory record" }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { inventoryId: string } }) {
   try {
-    const inventoryId = Number.parseInt(params.id)
+    const inventoryId = Number.parseInt(params.inventoryId)
 
-    await sql`
+    if (isNaN(inventoryId) || inventoryId <= 0) {
+      return NextResponse.json({ error: "Invalid inventory ID" }, { status: 400 })
+    }
+
+    const result = await sql`
       DELETE FROM inventory WHERE id = ${inventoryId}
+      RETURNING *
     `
+
+    if (result.length === 0) {
+      return NextResponse.json({ error: "Inventory record not found" }, { status: 404 })
+    }
 
     return NextResponse.json({ message: "Inventory record deleted successfully" })
   } catch (error) {

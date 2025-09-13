@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { cookies } from "next/headers"
-import { validateDatabaseUrl } from "@/lib/env-validation"
 
-const sql = neon(validateDatabaseUrl())
-
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { adminProductId: string } }) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get("admin-token")
@@ -14,90 +11,79 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const productData = await request.json()
-    const productId = Number.parseInt(params.id)
+    const productId = Number.parseInt(params.adminProductId)
 
-    console.log("[v0] Updating product:", productId, productData)
+    if (isNaN(productId) || productId <= 0) {
+      return NextResponse.json({ error: "Invalid product ID" }, { status: 400 })
+    }
 
-    const result = await sql`
-      UPDATE products 
-      SET name = ${productData.name}, 
-          description = ${productData.description}, 
-          price = ${productData.price}, 
-          currency_code = ${productData.currency_code}, 
-          brand = ${productData.brand}, 
-          category_id = ${productData.category_id}, 
-          stock_quantity = ${productData.stock_quantity}, 
-          image_url = ${productData.image_url}, 
-          is_active = ${productData.is_active},
-          updated_at = NOW()
-      WHERE id = ${productId}
-      RETURNING *
+    // Get product stats including sales data
+    const productStats = await sql`
+      SELECT 
+        p.*,
+        c.name as category_name,
+        COALESCE(SUM(oi.quantity), 0) as total_sold,
+        COALESCE(SUM(oi.total_price), 0) as total_revenue,
+        COALESCE(COUNT(DISTINCT o.id), 0) as total_orders,
+        COALESCE(AVG(oi.unit_price), p.price) as avg_selling_price
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN order_items oi ON p.id = oi.product_id
+      LEFT JOIN orders o ON oi.order_id = o.id
+      WHERE p.id = ${productId}
+      GROUP BY p.id, c.name
     `
 
-    if (result.length === 0) {
+    if (productStats.length === 0) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
 
-    console.log("[v0] Product updated successfully:", result[0])
-    return NextResponse.json(result[0])
-  } catch (error) {
-    console.error("[v0] Error updating product:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to update product",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
-  }
-}
-
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get("admin-token")
-
-    if (!token?.value || token.value !== "authenticated") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const productId = Number.parseInt(params.id)
-    console.log("[v0] Deleting product with ID:", productId, "Type:", typeof productId)
-
-    // First, try to delete from products table
-    const deleteResult = await sql`
-      DELETE FROM products 
-      WHERE id = ${productId}
-      RETURNING *
+    // Get recent orders for this product
+    const recentOrders = await sql`
+      SELECT 
+        o.id,
+        o.customer_name,
+        o.customer_email,
+        o.created_at,
+        oi.quantity,
+        oi.unit_price,
+        oi.total_price
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      WHERE oi.product_id = ${productId}
+      ORDER BY o.created_at DESC
+      LIMIT 10
     `
 
-    console.log("[v0] Direct delete result:", deleteResult)
+    // Get inventory history for this product
+    const inventoryHistory = await sql`
+      SELECT 
+        i.*,
+        i.purchase_date,
+        i.purchase_price,
+        i.purchase_quantity
+      FROM inventory i
+      WHERE i.product_id = ${productId}
+      ORDER BY i.purchase_date DESC
+      LIMIT 10
+    `
 
-    // Also try to clean up any related data that might reference this product
-    try {
-      await sql`DELETE FROM order_items WHERE product_id = ${productId}`
-      await sql`DELETE FROM inventory WHERE product_id = ${productId}`
-      console.log("[v0] Cleaned up related data for product:", productId)
-    } catch (cleanupError) {
-      console.log("[v0] Cleanup warning (non-critical):", cleanupError)
+    const stats = {
+      ...productStats[0],
+      recent_orders: recentOrders,
+      inventory_history: inventoryHistory,
+      profit_per_unit: Number(productStats[0].price) - Number(productStats[0].cost_price || 0),
+      profit_margin:
+        productStats[0].price > 0
+          ? ((Number(productStats[0].price) - Number(productStats[0].cost_price || 0)) /
+              Number(productStats[0].price)) *
+            100
+          : 0,
     }
 
-    // Always return success if we reach this point - force the frontend to update
-    console.log("[v0] Product deletion completed (forced success)")
-    return NextResponse.json({
-      success: true,
-      message: "Product deleted successfully",
-      deleted: deleteResult.length > 0 ? deleteResult[0] : { id: productId },
-    })
+    return NextResponse.json(stats)
   } catch (error) {
-    console.error("[v0] Error deleting product:", error)
-
-    console.log("[v0] Forcing success despite error to sync frontend")
-    return NextResponse.json({
-      success: true,
-      message: "Product removed from system",
-      forced: true,
-    })
+    console.error("Error fetching product stats:", error)
+    return NextResponse.json({ error: "Failed to fetch product stats" }, { status: 500 })
   }
 }
