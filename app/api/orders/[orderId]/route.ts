@@ -40,33 +40,71 @@ export async function GET(request: Request, { params }: { params: { orderId: str
 
 export async function PUT(request: Request, { params }: { params: { orderId: string } }) {
   try {
+    console.log("[v0] Order Update API: Starting update for order:", params.orderId)
+
     const orderId = Number.parseInt(params.orderId)
-    const { status, customer_name, customer_email, customer_phone } = await request.json()
+    const body = await request.json()
+    console.log("[v0] Order Update API: Received body:", body)
+
+    const { status, customer_name, customer_email, customer_phone } = body
 
     if (isNaN(orderId) || orderId <= 0) {
+      console.error("[v0] Order Update API: Invalid order ID:", params.orderId)
       return NextResponse.json({ error: "Invalid order ID" }, { status: 400 })
     }
+
+    if (!status) {
+      console.error("[v0] Order Update API: Status is required")
+      return NextResponse.json({ error: "Status is required" }, { status: 400 })
+    }
+
+    // Validate status values
+    const validStatuses = ["pending", "completed", "cancelled"]
+    if (!validStatuses.includes(status)) {
+      console.error("[v0] Order Update API: Invalid status:", status)
+      return NextResponse.json({ error: "Invalid status value" }, { status: 400 })
+    }
+
+    console.log("[v0] Order Update API: Updating order with validated data")
 
     const result = await sql`
       UPDATE orders 
       SET 
-        status = ${status || "pending"},
-        customer_name = ${customer_name},
-        customer_email = ${customer_email},
-        customer_phone = ${customer_phone || null},
+        status = ${status},
+        customer_name = COALESCE(${customer_name}, customer_name),
+        customer_email = COALESCE(${customer_email}, customer_email),
+        customer_phone = COALESCE(${customer_phone}, customer_phone),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${orderId}
       RETURNING *
     `
 
+    console.log("[v0] Order Update API: Update result:", result.length > 0 ? "Success" : "No rows affected")
+
     if (result.length === 0) {
+      console.error("[v0] Order Update API: Order not found:", orderId)
       return NextResponse.json({ error: "Order not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result[0])
+    console.log("[v0] Order Update API: Order updated successfully:", result[0])
+
+    console.log("[v0] Order Update API: Triggering stats refresh")
+
+    return NextResponse.json({
+      ...result[0],
+      message: "Order updated successfully",
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
-    console.error("Error updating order:", error)
-    return NextResponse.json({ error: "Failed to update order" }, { status: 500 })
+    console.error("[v0] Order Update API: Error updating order:", error)
+    console.error("[v0] Order Update API: Error stack:", (error instanceof Error ? error.stack : "No stack available"))
+    return NextResponse.json(
+      {
+        error: "Failed to update order: " + (error instanceof Error ? error.message : "Unknown error"),
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }
 

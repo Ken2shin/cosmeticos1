@@ -138,7 +138,7 @@ export function ProductCard({ product }: ProductCardProps) {
           </Button>
           {localStock < 5 && localStock > 0 && (
             <Badge variant="destructive" className="absolute bottom-3 left-3 animate-bounce">
-              ¡Últimas {localStock}!
+              ¡Últimas unidades!
             </Badge>
           )}
           {localStock === 0 && (
@@ -179,7 +179,7 @@ export function ProductCard({ product }: ProductCardProps) {
           ) : (
             <>
               <ShoppingCart className="w-4 h-4 mr-2" />
-              Agregar al Carrito ({localStock} disponibles)
+              Agregar al Carrito
             </>
           )}
         </Button>

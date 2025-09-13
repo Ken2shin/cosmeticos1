@@ -265,14 +265,16 @@ export function OrderManagement() {
     } catch (error) {
       console.error("[v0] Error generating PDF invoice:", error)
       let errorMessage = "Error desconocido"
-      if (error.message.includes("404")) {
-        errorMessage = "Pedido no encontrado"
-      } else if (error.message.includes("fetch")) {
-        errorMessage = "Error de conexión al servidor"
-      } else if (error.message.includes("jsPDF")) {
-        errorMessage = "Error al cargar la librería PDF"
-      } else {
-        errorMessage = error.message
+      if (error instanceof Error) {
+        if (error.message.includes("404")) {
+          errorMessage = "Pedido no encontrado"
+        } else if (error.message.includes("fetch")) {
+          errorMessage = "Error de conexión al servidor"
+        } else if (error.message.includes("jsPDF")) {
+          errorMessage = "Error al cargar la librería PDF"
+        } else {
+          errorMessage = error.message
+        }
       }
       toast({
         title: "Error al generar PDF",
@@ -336,6 +338,13 @@ export function OrderManagement() {
         console.log("[v0] Order status updated successfully:", result)
         await fetchOrders()
         setStatusDialog(null)
+
+        window.dispatchEvent(
+          new CustomEvent("orderUpdated", {
+            detail: { orderId, status, timestamp: Date.now() },
+          }),
+        )
+
         toast({
           title: "Estado Actualizado",
           description: `Estado del pedido actualizado a: ${getStatusText(status)}`,
