@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
+import { notifyStockUpdated, notifyInventoryChanged } from "@/lib/websocket-server"
 
 export async function GET() {
   try {
@@ -27,8 +28,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const requestBody = await request.json()
     const { product_id, purchase_price, purchase_quantity, current_stock, supplier_name, supplier_contact, notes } =
-      await request.json()
+      requestBody
 
     if (!product_id || !purchase_price || !purchase_quantity) {
       return NextResponse.json(
@@ -53,7 +55,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Insert inventory record
     const inventoryRecord = await sql`
       INSERT INTO inventory (
         product_id, 
@@ -84,17 +85,26 @@ export async function POST(request: NextRequest) {
       WHERE id = ${product_id}
     `
 
+    try {
+      notifyStockUpdated(product_id, stockUpdate)
+      notifyInventoryChanged({
+        ...inventoryRecord[0],
+        product_name: productExists[0].name,
+        action: "created",
+      })
+      console.log("[v0] Real-time notifications sent for inventory update")
+    } catch (wsError) {
+      console.error("[v0] WebSocket notification failed:", wsError)
+      // Don't fail the request if WebSocket fails
+    }
+
     return NextResponse.json(inventoryRecord[0], { status: 201 })
   } catch (error) {
     console.error("Error creating inventory record:", error)
 
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error &&
-      typeof (error as { message: unknown }).message === "string" &&
-      (error as { message: string }).message.includes("foreign key constraint")
-    ) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (errorMessage.includes("foreign key constraint")) {
       return NextResponse.json(
         {
           error: "Product reference error",

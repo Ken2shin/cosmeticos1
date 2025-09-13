@@ -22,7 +22,12 @@ app.prepare().then(() => {
     }
   })
 
-  initializeWebSocket(server)
+  try {
+    initializeWebSocket(server)
+    console.log("> WebSocket server initialized successfully")
+  } catch (error) {
+    console.error("Failed to initialize WebSocket server:", error)
+  }
 
   server
     .once("error", (err) => {
@@ -31,6 +36,5 @@ app.prepare().then(() => {
     })
     .listen(port, () => {
       console.log(`> Ready on http://${hostname}:${port}`)
-      console.log("> WebSocket server initialized")
     })
 })

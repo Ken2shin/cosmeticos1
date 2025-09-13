@@ -12,52 +12,63 @@ interface ProductGridProps {
 export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [forceRefresh, setForceRefresh] = useState(0)
 
   useEffect(() => {
     fetchProducts()
-  }, [forceRefresh])
+  }, [])
 
   useEffect(() => {
-    const handleProductUpdate = () => {
+    const handleProductUpdate = (event: CustomEvent) => {
       console.log("[v0] Product update detected, refreshing grid")
-      setForceRefresh((prev) => prev + 1)
       fetchProducts()
     }
 
-    const handleStockUpdate = () => {
-      console.log("[v0] Stock update detected, forcing refresh")
-      setForceRefresh((prev) => prev + 1)
+    const handleStockUpdate = (event: CustomEvent) => {
+      const { productId, newStock } = event.detail
+      console.log("[v0] Stock update detected for product:", productId, "new stock:", newStock)
+
+      setProducts((prevProducts) =>
+        prevProducts.map((product) => (product.id === productId ? { ...product, stock_quantity: newStock } : product)),
+      )
+    }
+
+    const handleProductDeleted = (event: CustomEvent) => {
+      const { productId } = event.detail
+      console.log("[v0] Product deleted:", productId)
+
+      setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productId))
+    }
+
+    const handleProductCreated = (event: CustomEvent) => {
+      console.log("[v0] New product created, refreshing grid")
       fetchProducts()
     }
 
-    window.addEventListener("productCreated", handleProductUpdate)
-    window.addEventListener("productDeleted", handleProductUpdate)
+    const handleInventoryChanged = (event: CustomEvent) => {
+      console.log("[v0] Inventory changed, updating affected products")
+      fetchProducts()
+    }
+
+    window.addEventListener("productCreated", handleProductCreated)
+    window.addEventListener("productDeleted", handleProductDeleted)
     window.addEventListener("productUpdated", handleProductUpdate)
     window.addEventListener("stockUpdated", handleStockUpdate)
-    window.addEventListener("inventoryChanged", handleStockUpdate)
-
-    const intervalId = setInterval(() => {
-      console.log("[v0] Brute force refresh - checking for stock updates")
-      fetchProducts()
-    }, 10000)
+    window.addEventListener("inventoryChanged", handleInventoryChanged)
 
     return () => {
-      window.removeEventListener("productCreated", handleProductUpdate)
-      window.removeEventListener("productDeleted", handleProductUpdate)
+      window.removeEventListener("productCreated", handleProductCreated)
+      window.removeEventListener("productDeleted", handleProductDeleted)
       window.removeEventListener("productUpdated", handleProductUpdate)
       window.removeEventListener("stockUpdated", handleStockUpdate)
-      window.removeEventListener("inventoryChanged", handleStockUpdate)
-      clearInterval(intervalId)
+      window.removeEventListener("inventoryChanged", handleInventoryChanged)
     }
   }, [])
 
   const fetchProducts = async () => {
     try {
-      console.log("[v0] Fetching products for grid - Force refresh:", forceRefresh)
+      console.log("[v0] Fetching products for grid")
       const timestamp = Date.now()
-      const random = Math.random()
-      const response = await fetch(`/api/products?t=${timestamp}&r=${random}`, {
+      const response = await fetch(`/api/products?t=${timestamp}`, {
         cache: "no-store",
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",

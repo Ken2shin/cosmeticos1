@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless"
 import { cookies } from "next/headers"
 import type { NextRequest } from "next/server"
 import { validateDatabaseUrl } from "@/lib/env-validation"
+import { notifyNewProduct } from "@/lib/websocket-server"
 
 const sql = neon(validateDatabaseUrl())
 
@@ -145,8 +146,18 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
 
-    console.log("[v0] Product created successfully with image:", result[0])
-    return NextResponse.json(result[0])
+    const newProduct = result[0]
+    console.log("[v0] Product created successfully with image:", newProduct)
+
+    try {
+      notifyNewProduct(newProduct)
+      console.log("[v0] Real-time notification sent for new product")
+    } catch (wsError) {
+      console.error("[v0] WebSocket notification failed:", wsError)
+      // Don't fail the request if WebSocket fails
+    }
+
+    return NextResponse.json(newProduct)
   } catch (error) {
     console.error("[v0] Error creating product:", error)
     return NextResponse.json(
