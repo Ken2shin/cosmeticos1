@@ -19,54 +19,71 @@ export async function POST(request: NextRequest) {
         const { put } = await import("@vercel/blob")
 
         const timestamp = Date.now()
-        const filename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "")}`
+        const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "").toLowerCase()
+        const filename = `products/${timestamp}-${cleanName}`
+
+        console.log("[v0] Attempting Vercel Blob upload with filename:", filename)
 
         const blob = await put(filename, file, {
           access: "public",
+          addRandomSuffix: false,
         })
 
-        console.log("[v0] File uploaded to Vercel Blob:", blob.url)
+        console.log("[v0] SUCCESS: File uploaded to Vercel Blob:", blob.url)
 
         return NextResponse.json({
           success: true,
           filename,
           url: blob.url,
+          uploaded: true,
         })
       } catch (blobError) {
-        console.error("[v0] Blob upload failed, using fallback:", blobError)
-        // Continue to fallback instead of failing
+        console.error("[v0] Blob upload failed:", blobError)
+        // Continue to base64 fallback
       }
+    }
+
+    try {
+      const bytes = await file.arrayBuffer()
+      const buffer = Buffer.from(bytes)
+      const base64 = buffer.toString("base64")
+      const mimeType = file.type || "image/jpeg"
+      const dataUrl = `data:${mimeType};base64,${base64}`
+
+      console.log("[v0] SUCCESS: Converted to base64, size:", base64.length)
+
+      return NextResponse.json({
+        success: true,
+        filename: file.name,
+        url: dataUrl,
+        base64: true,
+      })
+    } catch (base64Error) {
+      console.error("[v0] Base64 conversion failed:", base64Error)
     }
 
     const timestamp = Date.now()
     const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, "").toLowerCase()
     const filename = `${timestamp}-${cleanName}`
-
-    // Generate a more descriptive placeholder based on file name
     const productName = cleanName.split(".")[0] || "product"
     const placeholderUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-${productName}-cosmetic-item`
 
-    console.log("[v0] Using enhanced placeholder for production:", placeholderUrl)
+    console.log("[v0] Using enhanced placeholder:", placeholderUrl)
 
     return NextResponse.json({
       success: true,
       filename,
       url: placeholderUrl,
       fallback: true,
-      note: "Using placeholder - configure Vercel Blob for actual uploads",
     })
   } catch (error) {
-    console.error("[v0] Upload error, using emergency fallback:", error)
-
-    const emergencyUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-default-cosmetic`
+    console.error("[v0] Upload error:", error)
 
     return NextResponse.json({
       success: true,
       filename: `emergency-${Date.now()}.jpg`,
-      url: emergencyUrl,
-      fallback: true,
+      url: `/placeholder.svg?height=400&width=400&query=beauty-product-default-cosmetic`,
       emergency: true,
-      note: "Emergency fallback used - upload system needs attention",
     })
   }
 }

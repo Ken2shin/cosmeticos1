@@ -204,23 +204,42 @@ export function ProductManagement() {
                 {product.brand && <p className="text-sm text-muted-foreground">{product.brand}</p>}
               </CardHeader>
               <CardContent>
-                {product.image_url && (
-                  <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 overflow-hidden">
-                    <img
-                      src={product.image_url || "/placeholder.svg"}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      onError={(e) => {
-                        console.log("[v0] Image failed to load:", product.image_url)
-                        const target = e.target as HTMLImageElement
+                <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 overflow-hidden relative">
+                  <img
+                    src={
+                      product.image_url ||
+                      `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
+                    }
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      console.log("[v0] Image failed to load, trying fallbacks:", product.image_url)
+                      const target = e.target as HTMLImageElement
+
+                      // Try multiple fallback strategies
+                      if (!target.src.includes("placeholder.svg")) {
                         target.src = `/placeholder.svg?height=400&width=400&query=beauty-product-${product.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
-                      }}
-                      onLoad={() => {
-                        console.log("[v0] Image loaded successfully:", product.image_url)
-                      }}
-                    />
-                  </div>
-                )}
+                      } else if (!target.src.includes("fallback")) {
+                        target.src = `/placeholder.svg?height=400&width=400&query=cosmetic-product-fallback`
+                      }
+                    }}
+                    onLoad={() => {
+                      console.log("[v0] Image loaded successfully:", product.image_url)
+                    }}
+                    style={{
+                      minHeight: "128px",
+                      backgroundColor: "#f3f4f6",
+                    }}
+                  />
+                  {!product.image_url && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                      <div className="text-gray-400 text-xs text-center">
+                        <div className="w-8 h-8 mx-auto mb-1 opacity-50">📷</div>
+                        Sin imagen
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{product.description}</p>
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xl font-bold text-rose-600">C${product.price}</span>
