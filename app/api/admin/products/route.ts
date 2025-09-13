@@ -66,6 +66,51 @@ export async function POST(request: NextRequest) {
     const productData = await request.json()
     console.log("[v0] Creating new product:", productData)
 
+    const price = Number.parseFloat(productData.price)
+    const maxPrice = 99999999.99 // Maximum value for DECIMAL(10,2)
+
+    if (isNaN(price) || price < 0) {
+      return NextResponse.json({ error: "El precio debe ser un número válido mayor a 0" }, { status: 400 })
+    }
+
+    if (price > maxPrice) {
+      return NextResponse.json(
+        {
+          error: `El precio no puede exceder ${maxPrice.toLocaleString("es-ES", { style: "currency", currency: "USD" })}`,
+        },
+        { status: 400 },
+      )
+    }
+
+    let categoryId = null
+    if (productData.category) {
+      try {
+        // First try to find existing category
+        const existingCategory = await sql`
+          SELECT id FROM categories WHERE LOWER(name) = LOWER(${productData.category}) LIMIT 1
+        `
+
+        if (existingCategory.length > 0) {
+          categoryId = existingCategory[0].id
+        } else {
+          // Create new category if it doesn't exist
+          const newCategory = await sql`
+            INSERT INTO categories (name) VALUES (${productData.category}) RETURNING id
+          `
+          categoryId = newCategory[0].id
+          console.log("[v0] Created new category:", productData.category, "with ID:", categoryId)
+        }
+      } catch (categoryError) {
+        console.error("[v0] Error handling category:", categoryError)
+        // Continue without category if there's an error
+      }
+    }
+
+    const imageUrl =
+      productData.image_url ||
+      `/placeholder.svg?height=400&width=400&query=beauty-product-${productData.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
+    console.log("[v0] Using image URL:", imageUrl)
+
     const result = await sql`
       INSERT INTO products (
         name, 
@@ -79,26 +124,28 @@ export async function POST(request: NextRequest) {
         is_active,
         sku,
         cost_price,
-        min_stock_level
+        min_stock_level,
+        category
       )
       VALUES (
         ${productData.name}, 
         ${productData.description || ""}, 
-        ${productData.price}, 
+        ${price}, 
         ${productData.currency_code || "NIO"}, 
         ${productData.brand || ""}, 
-        ${productData.category_id || null}, 
+        ${categoryId}, 
         ${productData.stock_quantity || 0}, 
-        ${productData.image_url || ""}, 
+        ${imageUrl}, 
         ${productData.is_active !== false},
-        ${productData.sku || "SIN-SKU"},
+        ${productData.sku || `SKU-${Date.now()}`},
         ${productData.cost_price || 0},
-        ${productData.min_stock_level || 0}
+        ${productData.min_stock_level || 0},
+        ${productData.category || ""}
       )
       RETURNING *
     `
 
-    console.log("[v0] Product created successfully:", result[0])
+    console.log("[v0] Product created successfully with image:", result[0])
     return NextResponse.json(result[0])
   } catch (error) {
     console.error("[v0] Error creating product:", error)

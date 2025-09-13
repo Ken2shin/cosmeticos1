@@ -155,10 +155,11 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         console.log("[v0] Uploading selected file")
         try {
           imageUrl = await uploadFile(selectedFile)
+          console.log("[v0] Upload successful, got URL:", imageUrl)
         } catch (uploadError) {
           console.error("[v0] Upload failed, continuing with default:", uploadError)
           // Use a default image if upload completely fails
-          imageUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-default-cosmetic`
+          imageUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-${formData.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
         }
       }
 
@@ -171,7 +172,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         sku: finalSKU,
       }
 
-      console.log("[v0] Submitting product data:", productData)
+      console.log("[v0] Submitting product data with image:", productData)
 
       const url = product ? `/api/admin/products/${product.id}` : "/api/admin/products"
       const method = product ? "PUT" : "POST"
@@ -187,6 +188,9 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         throw new Error(errorData.error || `Failed to save product: ${response.status}`)
       }
 
+      const savedProduct = await response.json()
+      console.log("[v0] Product saved with image URL:", savedProduct.image_url)
+
       if (product) {
         toast({
           title: "¡Producto actualizado!",
@@ -201,7 +205,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         })
       }
 
-      console.log("[v0] Product saved successfully")
+      console.log("[v0] Product saved successfully, refreshing parent component")
       onClose(true)
     } catch (error) {
       console.error("[v0] Error saving product:", error)
