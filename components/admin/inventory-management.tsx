@@ -77,16 +77,20 @@ export function InventoryManagement() {
 
   const fetchProducts = async () => {
     try {
+      console.log("[v0] Fetching products for inventory selection")
       const response = await fetch("/api/products")
       if (response.ok) {
         const data = await response.json()
+        console.log("[v0] Products fetched successfully:", data.length, "products")
         setProducts(Array.isArray(data) ? data : [])
       } else {
-        console.error("Error fetching products: HTTP", response.status)
+        console.error("[v0] Error fetching products: HTTP", response.status)
+        const errorText = await response.text()
+        console.error("[v0] Error details:", errorText)
         setProducts([])
       }
     } catch (error) {
-      console.error("Error fetching products:", error)
+      console.error("[v0] Error fetching products:", error)
       setProducts([])
     }
   }
@@ -103,10 +107,10 @@ export function InventoryManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          product_id: Number.parseInt(formData.product_id || "0"),
-          purchase_price: Number.parseFloat(formData.purchase_price || "0"),
-          purchase_quantity: Number.parseInt(formData.purchase_quantity || "0"),
-          current_stock: Number.parseInt(formData.current_stock || "0"),
+          product_id: Number.parseInt(formData.product_id),
+          purchase_price: Number.parseFloat(formData.purchase_price),
+          purchase_quantity: Number.parseInt(formData.purchase_quantity),
+          current_stock: Number.parseInt(formData.current_stock),
         }),
       })
 
@@ -126,10 +130,10 @@ export function InventoryManagement() {
   const handleEdit = (record: InventoryRecord) => {
     setEditingRecord(record)
     setFormData({
-      product_id: record.product_id ? record.product_id.toString() : "",
-      purchase_price: record.purchase_price ? record.purchase_price.toString() : "",
-      purchase_quantity: record.purchase_quantity ? record.purchase_quantity.toString() : "",
-      current_stock: record.current_stock ? record.current_stock.toString() : "",
+      product_id: record.product_id.toString(),
+      purchase_price: record.purchase_price.toString(),
+      purchase_quantity: record.purchase_quantity.toString(),
+      current_stock: record.current_stock.toString(),
       supplier_name: record.supplier_name || "",
       supplier_contact: record.supplier_contact || "",
       notes: record.notes || "",
@@ -215,7 +219,7 @@ export function InventoryManagement() {
                     <Package className="w-4 h-4" />
                     {record.product_name}
                   </CardTitle>
-                  <Badge variant="outline">Stock: {record.current_stock || 0}</Badge>
+                  <Badge variant="outline">Stock: {record.current_stock}</Badge>
                 </div>
                 {record.product_brand && <p className="text-sm text-muted-foreground">{record.product_brand}</p>}
               </CardHeader>
@@ -223,18 +227,18 @@ export function InventoryManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Costo</div>
-                    <div className="text-lg font-bold text-red-600">C${record.purchase_price || 0}</div>
+                    <div className="text-lg font-bold text-red-600">C${record.purchase_price}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Venta</div>
-                    <div className="text-lg font-bold text-green-600">C${record.selling_price || 0}</div>
+                    <div className="text-lg font-bold text-green-600">C${record.selling_price}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Ganancia/Unidad</div>
-                    <div className="text-sm font-semibold text-green-600">C${record.profit_per_unit || 0}</div>
+                    <div className="text-sm font-semibold text-green-600">C${record.profit_per_unit}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Margen</div>
@@ -249,7 +253,7 @@ export function InventoryManagement() {
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Calendar className="w-3 h-3" />
-                  Comprado: {new Date(record.purchase_date || "").toLocaleDateString()}
+                  Comprado: {new Date(record.purchase_date).toLocaleDateString()}
                 </div>
 
                 {record.supplier_name && (
@@ -309,12 +313,17 @@ export function InventoryManagement() {
                   <SelectValue placeholder="Seleccionar producto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.isArray(products) &&
+                  {Array.isArray(products) && products.length > 0 ? (
                     products.map((product) => (
                       <SelectItem key={product.id} value={product.id.toString()}>
                         {product.name} {product.brand && `- ${product.brand}`}
                       </SelectItem>
-                    ))}
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      {products.length === 0 ? "No hay productos disponibles" : "Cargando productos..."}
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

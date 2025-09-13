@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { notifyStockUpdated, notifyInventoryChanged } from "@/lib/websocket-server"
 
 export async function GET() {
   try {
+    console.log("[v0] API: Fetching inventory records")
+
     const inventory = await sql`
       SELECT 
         i.*,
@@ -12,16 +13,20 @@ export async function GET() {
         p.price as selling_price,
         p.stock_quantity as current_stock,
         p.cost_price,
-        (p.price - p.cost_price) as profit_per_unit,
-        ((p.price - p.cost_price) / p.price * 100) as profit_margin_percent
+        (p.price - COALESCE(p.cost_price, 0)) as profit_per_unit,
+        (CASE 
+          WHEN p.price > 0 THEN ((p.price - COALESCE(p.cost_price, 0)) / p.price * 100)
+          ELSE 0 
+        END) as profit_margin_percent
       FROM inventory i
       JOIN products p ON i.product_id = p.id
       ORDER BY i.purchase_date DESC
     `
 
+    console.log("[v0] API: Inventory records fetched:", inventory.length)
     return NextResponse.json(inventory)
   } catch (error) {
-    console.error("Error fetching inventory:", error)
+    console.error("[v0] API: Error fetching inventory:", error)
     return NextResponse.json({ error: "Failed to fetch inventory" }, { status: 500 })
   }
 }
@@ -31,6 +36,8 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json()
     const { product_id, purchase_price, purchase_quantity, current_stock, supplier_name, supplier_contact, notes } =
       requestBody
+
+    console.log("[v0] API: Creating inventory record:", { product_id, purchase_price, purchase_quantity })
 
     if (!product_id || !purchase_price || !purchase_quantity) {
       return NextResponse.json(
@@ -86,6 +93,7 @@ export async function POST(request: NextRequest) {
     `
 
     try {
+      const { notifyStockUpdated, notifyInventoryChanged } = require("@/lib/websocket-server.js")
       notifyStockUpdated(product_id, stockUpdate)
       notifyInventoryChanged({
         ...inventoryRecord[0],
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(inventoryRecord[0], { status: 201 })
   } catch (error) {
-    console.error("Error creating inventory record:", error)
+    console.error("[v0] API: Error creating inventory record:", error)
 
     const errorMessage = error instanceof Error ? error.message : String(error)
 
