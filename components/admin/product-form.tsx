@@ -271,11 +271,25 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                 id="price"
                 type="number"
                 step="0.01"
+                max="99999999.99"
+                min="0"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (Number.parseFloat(value) > 99999999.99) {
+                    toast({
+                      title: "Precio demasiado alto",
+                      description: "El precio máximo permitido es $99,999,999.99",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  setFormData({ ...formData, price: value })
+                }}
                 className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
                 required
               />
+              <p className="text-xs text-muted-foreground">Precio máximo: $99,999,999.99</p>
             </div>
 
             <div className="space-y-2">
