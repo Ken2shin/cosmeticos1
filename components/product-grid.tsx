@@ -17,8 +17,27 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     fetchProducts()
   }, []) // Removed any dependencies that could cause loops
 
+  useEffect(() => {
+    const handleProductUpdate = () => {
+      console.log("[v0] Product update detected, refreshing grid")
+      fetchProducts()
+    }
+
+    // Listen for custom events from other components
+    window.addEventListener("productCreated", handleProductUpdate)
+    window.addEventListener("productDeleted", handleProductUpdate)
+    window.addEventListener("productUpdated", handleProductUpdate)
+
+    return () => {
+      window.removeEventListener("productCreated", handleProductUpdate)
+      window.removeEventListener("productDeleted", handleProductUpdate)
+      window.removeEventListener("productUpdated", handleProductUpdate)
+    }
+  }, [])
+
   const fetchProducts = async () => {
     try {
+      console.log("[v0] Fetching products for grid")
       const response = await fetch("/api/products", {
         cache: "no-store",
         headers: {
@@ -31,8 +50,10 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
       }
 
       const data = await response.json()
+      console.log("[v0] Products fetched for grid:", data?.length || 0)
       setProducts(data || [])
     } catch (error) {
+      console.error("[v0] Error fetching products:", error)
       setProducts([])
     } finally {
       setLoading(false)

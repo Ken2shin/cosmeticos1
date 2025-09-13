@@ -16,6 +16,7 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const { dispatch } = useCart()
 
   const handleAddToCart = async () => {
@@ -25,16 +26,25 @@ export function ProductCard({ product }: ProductCardProps) {
     setIsAdding(false)
   }
 
+  const getImageUrl = () => {
+    if (!product.image_url || imageError) {
+      return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " beauty product")}`
+    }
+    return product.image_url
+  }
+
   return (
     <Card className="group hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 animate-in fade-in-0 slide-in-from-bottom-4 border-0 bg-white/80 backdrop-blur-sm">
       <CardContent className="p-0">
         <div className="relative overflow-hidden rounded-t-lg">
           <Image
-            src={product.image_url || "/placeholder.svg?height=300&width=300&query=beauty product"}
+            src={getImageUrl() || "/placeholder.svg"}
             alt={product.name}
             width={300}
             height={300}
             className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-700"
+            onError={() => setImageError(true)}
+            unoptimized={getImageUrl().includes("placeholder.svg")}
           />
           <Badge className="absolute top-3 right-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 animate-pulse">
             {product.category}

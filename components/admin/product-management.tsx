@@ -61,6 +61,8 @@ export function ProductManagement() {
         const response = await fetch(`/api/admin/products/${productId}`, { method: "DELETE" })
 
         if (response.ok) {
+          window.dispatchEvent(new CustomEvent("productDeleted", { detail: { productId } }))
+
           toast({
             title: "Producto eliminado",
             description: "El producto se ha eliminado exitosamente del catálogo.",
@@ -124,6 +126,7 @@ export function ProductManagement() {
     setShowForm(false)
     setEditingProduct(null)
     if (shouldRefresh) {
+      window.dispatchEvent(new CustomEvent("productCreated"))
       fetchProducts()
     }
   }

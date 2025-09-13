@@ -158,9 +158,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
           console.log("[v0] Upload successful, got URL:", imageUrl)
         } catch (uploadError) {
           console.error("[v0] Upload failed, continuing with default:", uploadError)
-          // Use a default image if upload completely fails
-          imageUrl = `/placeholder.svg?height=400&width=400&query=beauty-product-${formData.name.replace(/\s+/g, "-").toLowerCase()}-cosmetic`
+          imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
         }
+      } else if (!imageUrl) {
+        imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
       }
 
       const finalSKU = formData.sku.trim() || generateSKU()
@@ -192,12 +193,14 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       console.log("[v0] Product saved with image URL:", savedProduct.image_url)
 
       if (product) {
+        window.dispatchEvent(new CustomEvent("productUpdated", { detail: savedProduct }))
         toast({
           title: "¡Producto actualizado!",
           description: `${formData.name} se ha actualizado exitosamente.`,
           variant: "default",
         })
       } else {
+        window.dispatchEvent(new CustomEvent("productCreated", { detail: savedProduct }))
         toast({
           title: "¡Producto creado!",
           description: `${formData.name} se ha creado exitosamente y está disponible en el catálogo.`,
