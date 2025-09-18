@@ -47,7 +47,6 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
 
   const fetchCategories = useCallback(async () => {
     try {
-      console.log("[v0] Fetching categories for form...")
       const response = await fetch("/api/categories", {
         cache: "no-store",
         headers: {
@@ -57,14 +56,11 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
 
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Categories fetched for form:", data.length)
         setCategories(data)
       } else {
-        console.error("[v0] Failed to fetch categories:", response.status)
         setCategories([])
       }
     } catch (error) {
-      console.error("[v0] Error fetching categories:", error)
       setCategories([])
     }
   }, [])
@@ -90,11 +86,16 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }, [product])
 
   const uploadFile = async (file: File): Promise<string> => {
-    console.log("[v0] Starting file upload:", file.name, "Size:", file.size, "Type:", file.type)
+    // Mobile-specific file size limit (2MB instead of 10MB)
+    const maxSize = window.innerWidth < 768 ? 2 * 1024 * 1024 : 10 * 1024 * 1024
 
-    if (file.size > 10 * 1024 * 1024) {
-      // 10MB limit
-      console.warn("[v0] File too large, using fallback")
+    if (file.size > maxSize) {
+      const sizeMB = window.innerWidth < 768 ? "2MB" : "10MB"
+      toast({
+        title: "Archivo muy grande",
+        description: `El archivo debe ser menor a ${sizeMB} para dispositivos móviles`,
+        variant: "destructive",
+      })
       return `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
     }
 
@@ -107,22 +108,15 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         body: formData,
       })
 
-      console.log("[v0] Upload response status:", response.status)
-
       if (!response.ok) {
-        console.error("[v0] Upload failed with status:", response.status)
         const fallbackUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
-        console.log("[v0] Using fallback URL:", fallbackUrl)
         return fallbackUrl
       }
 
       const result = await response.json()
-      console.log("[v0] Upload successful, received URL:", result.url)
       return result.url
     } catch (error) {
-      console.error("[v0] Upload error, using emergency fallback:", error)
       const emergencyUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent("beauty cosmetic product " + Date.now())}`
-      console.log("[v0] Using emergency URL:", emergencyUrl)
       return emergencyUrl
     }
   }
@@ -149,7 +143,6 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         })
       }
     } catch (error) {
-      console.error("Error adding category:", error)
       toast({
         title: "Error",
         description: "No se pudo crear la categoría. Intenta de nuevo.",
@@ -175,16 +168,15 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       let imageUrl = formData.image_url
 
       if (selectedFile) {
-        console.log("[v0] Processing selected file for upload:", selectedFile.name)
         try {
           imageUrl = await uploadFile(selectedFile)
-          console.log("[v0] File upload completed, final URL:", imageUrl)
+          if (selectedFile && typeof window !== "undefined") {
+            URL.revokeObjectURL(URL.createObjectURL(selectedFile))
+          }
         } catch (uploadError) {
-          console.error("[v0] Upload failed, using generated fallback:", uploadError)
           imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
         }
       } else if (!imageUrl) {
-        console.log("[v0] No file selected, generating placeholder URL")
         imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
       }
 
@@ -196,11 +188,6 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         price: Number.parseFloat(formData.price),
         sku: finalSKU,
       }
-
-      console.log("[v0] Submitting product data:", {
-        ...productData,
-        image_url: imageUrl.substring(0, 100) + (imageUrl.length > 100 ? "..." : ""),
-      })
 
       const url = product ? `/api/admin/products/${product.id}` : "/api/admin/products"
       const method = product ? "PUT" : "POST"
@@ -217,7 +204,6 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       }
 
       const savedProduct = await response.json()
-      console.log("[v0] Product saved successfully with image:", savedProduct.image_url)
 
       if (product) {
         window.dispatchEvent(new CustomEvent("productUpdated", { detail: savedProduct }))
@@ -235,12 +221,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         })
       }
 
-      console.log("[v0] Triggering UI refresh...")
       setTimeout(() => {
         onClose(true)
-      }, 100)
+      }, 50)
     } catch (error) {
-      console.error("[v0] Error saving product:", error)
       toast({
         title: "Error al guardar",
         description: error instanceof Error ? error.message : "Error desconocido al guardar el producto",
@@ -252,7 +236,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
+    <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
       <CardHeader>
         <div className="flex items-center gap-4">
           <Button
@@ -270,7 +254,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Nombre del Producto</Label>
               <Input
@@ -294,7 +278,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="description">Descripción</Label>
               <Textarea
@@ -317,7 +301,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="price">Precio</Label>
               <Input
@@ -423,13 +407,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                     alt="Vista previa"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      console.log("[v0] Preview image failed to load")
                       const target = e.target as HTMLImageElement
                       target.src = `/placeholder.svg?height=128&width=128&query=preview-${formData.name || "product"}`
                     }}
-                    onLoad={() => {
-                      console.log("[v0] Preview image loaded successfully")
-                    }}
+                    loading="lazy"
                   />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Vista previa de la imagen</p>
