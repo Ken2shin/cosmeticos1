@@ -1,7 +1,15 @@
 import { neon } from "@neondatabase/serverless"
+import { validateDatabaseUrl } from "./env-validation"
 
-const databaseUrl =
-  "postgresql://ondb_owner:npg_fVPDrJ0bN3cC@ep-twilight-math-ad6ilsdl-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+let databaseUrl: string
+
+try {
+  databaseUrl = validateDatabaseUrl()
+} catch (error) {
+  console.error("[v0] Environment validation failed:", error)
+  // Fallback for development - you should set DATABASE_URL in production
+  databaseUrl = process.env.DATABASE_URL || "postgresql://localhost:5432/fallback"
+}
 
 export let sql: any
 

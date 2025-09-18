@@ -85,16 +85,16 @@ export async function PUT(request: Request, { params }: { params: { inventoryId:
       `
 
       try {
-        const { notifyStockUpdated, notifyInventoryChanged } = require("@/lib/websocket-server.js")
-        notifyStockUpdated(productId, purchase_quantity)
+        const { notifyStockUpdated, notifyInventoryChanged } = await import("@/lib/sse-notifications")
+        notifyStockUpdated(productId.toString(), purchase_quantity)
         notifyInventoryChanged({
           ...result[0],
           action: "updated",
         })
-        console.log("[v0] Real-time notifications sent for inventory update")
-      } catch (wsError) {
-        console.error("[v0] WebSocket notification failed:", wsError)
-        // Don't fail the request if WebSocket fails
+        console.log("[v0] Real-time SSE notifications sent for inventory update")
+      } catch (sseError) {
+        console.error("[v0] SSE notification failed:", sseError)
+        // Don't fail the request if SSE fails
       }
     }
 

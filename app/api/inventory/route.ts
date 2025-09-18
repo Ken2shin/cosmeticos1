@@ -93,17 +93,17 @@ export async function POST(request: NextRequest) {
     `
 
     try {
-      const { notifyStockUpdated, notifyInventoryChanged } = require("@/lib/websocket-server.js")
-      notifyStockUpdated(product_id, stockUpdate)
+      const { notifyStockUpdated, notifyInventoryChanged } = await import("@/lib/sse-notifications")
+      notifyStockUpdated(product_id.toString(), stockUpdate)
       notifyInventoryChanged({
         ...inventoryRecord[0],
         product_name: productExists[0].name,
         action: "created",
       })
-      console.log("[v0] Real-time notifications sent for inventory update")
-    } catch (wsError) {
-      console.error("[v0] WebSocket notification failed:", wsError)
-      // Don't fail the request if WebSocket fails
+      console.log("[v0] Real-time SSE notifications sent for inventory update")
+    } catch (sseError) {
+      console.error("[v0] SSE notification failed:", sseError)
+      // Don't fail the request if SSE fails
     }
 
     return NextResponse.json(inventoryRecord[0], { status: 201 })
