@@ -5,6 +5,8 @@ import type { NextRequest } from "next/server"
 import { validateDatabaseUrl } from "@/lib/env-validation"
 import { notifyNewProduct } from "@/lib/websocket-server"
 
+export const dynamic = "force-dynamic"
+
 const sql = neon(validateDatabaseUrl())
 
 export async function GET() {

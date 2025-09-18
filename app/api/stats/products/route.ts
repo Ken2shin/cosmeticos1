@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import { cookies } from "next/headers"
-import { validateDatabaseUrl } from "../../../../lib/env-validation"
+import { validateDatabaseUrl } from "@/lib/env-validation"
+
+export const dynamic = "force-dynamic"
 
 const sql = neon(validateDatabaseUrl())
 
-export async function GET({ params }: { params: { adminProductId: string } }) {
+export async function GET() {
   try {
     console.log("[v0] Admin products API called")
 

@@ -1,11 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { neon } from "@neondatabase/serverless"
+import { validateDatabaseUrl } from "@/lib/env-validation"
+
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
+const sql = neon(validateDatabaseUrl())
 
 export async function GET(request: NextRequest) {
   try {
     console.log("[v0] Starting PDF generation process...")
 
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = request.nextUrl
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
 
@@ -16,7 +22,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Fechas de inicio y fin son requeridas" }, { status: 400 })
     }
 
-    let summary, topProducts, dailyStats, categoryStats, topCustomers
+    let summary: Array<{
+      total_orders: number
+      total_revenue: number
+      total_profit: number
+      avg_profit_margin: number
+      unique_customers: number
+      total_items_sold: number
+    }> = [],
+      topProducts: Array<{
+        product_name: string
+        brand: string
+        total_sold: number
+        total_revenue: number
+        total_profit: number
+        avg_profit_margin: number
+        orders_count: number
+      }> = [],
+      dailyStats: Array<{
+        date: string
+        orders_count: number
+        revenue: number
+        profit: number
+        unique_customers: number
+        items_sold: number
+      }> = [],
+      categoryStats: Array<{
+        category_name: string
+        products_count: number
+        total_sold: number
+        total_revenue: number
+        total_profit: number
+        avg_profit_margin: number
+      }> = [],
+      topCustomers: Array<{
+        customer_name: string
+        customer_email: string
+        total_orders: number
+        total_spent: number
+        total_profit_generated: number
+        avg_order_value: number
+      }> = []
 
     try {
       console.log("[v0] Executing summary query...")
@@ -34,7 +80,14 @@ export async function GET(request: NextRequest) {
         WHERE o.created_at >= ${startDate}::date 
           AND o.created_at <= ${endDate}::date + INTERVAL '1 day'
           AND o.status = 'completed'
-      `
+      ` as Array<{
+        total_orders: number
+        total_revenue: number
+        total_profit: number
+        avg_profit_margin: number
+        unique_customers: number
+        total_items_sold: number
+      }>
       console.log("[v0] Summary query completed")
     } catch (error) {
       console.error("[v0] Summary query failed:", error)
@@ -71,7 +124,15 @@ export async function GET(request: NextRequest) {
         GROUP BY p.id, p.name, p.brand
         ORDER BY total_sold DESC
         LIMIT 10
-      `
+      ` as Array<{
+        product_name: string
+        brand: string
+        total_sold: number
+        total_revenue: number
+        total_profit: number
+        avg_profit_margin: number
+        orders_count: number
+      }>
       console.log("[v0] Top products query completed")
     } catch (error) {
       console.error("[v0] Top products query failed:", error)
@@ -97,7 +158,14 @@ export async function GET(request: NextRequest) {
         GROUP BY DATE(o.created_at)
         ORDER BY date DESC
         LIMIT 30
-      `
+      ` as Array<{
+        date: string
+        orders_count: number
+        revenue: number
+        profit: number
+        unique_customers: number
+        items_sold: number
+      }>
       console.log("[v0] Daily stats query completed")
     } catch (error) {
       console.error("[v0] Daily stats query failed:", error)
@@ -125,7 +193,14 @@ export async function GET(request: NextRequest) {
         GROUP BY c.id, c.name
         ORDER BY total_revenue DESC
         LIMIT 10
-      `
+      ` as Array<{
+        category_name: string
+        products_count: number
+        total_sold: number
+        total_revenue: number
+        total_profit: number
+        avg_profit_margin: number
+      }>
       console.log("[v0] Category stats query completed")
     } catch (error) {
       console.error("[v0] Category stats query failed:", error)
@@ -150,7 +225,14 @@ export async function GET(request: NextRequest) {
         GROUP BY o.customer_name, o.customer_email
         ORDER BY total_spent DESC
         LIMIT 10
-      `
+      ` as Array<{
+        customer_name: string
+        customer_email: string
+        total_orders: number
+        total_spent: number
+        total_profit_generated: number
+        avg_order_value: number
+      }>
       console.log("[v0] Top customers query completed")
     } catch (error) {
       console.error("[v0] Top customers query failed:", error)

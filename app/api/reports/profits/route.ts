@@ -1,9 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { neon } from "@neondatabase/serverless"
+import { validateDatabaseUrl } from "@/lib/env-validation"
+
+export const dynamic = "force-dynamic"
+
+const sql = neon(validateDatabaseUrl())
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = request.nextUrl
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
 

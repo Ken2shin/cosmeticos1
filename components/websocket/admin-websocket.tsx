@@ -9,14 +9,26 @@ export function AdminWebSocket() {
   const { toast } = useToast()
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
+      console.log("[v0] Admin WebSocket disabled in Vercel production environment")
+      return
+    }
+
     const initializeSocket = () => {
       const socketUrl =
-        process.env.NODE_ENV === "production" ? process.env.NEXT_PUBLIC_APP_URL : "https://cosmeticos-jwwe.vercel.app/"
+        process.env.NODE_ENV === "production"
+          ? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+          : "http://localhost:3000"
+
+      console.log("[v0] Admin initializing WebSocket connection to:", socketUrl)
 
       socketRef.current = io(socketUrl, {
-        transports: ["websocket", "polling"],
+        transports: ["polling", "websocket"],
         timeout: 20000,
         forceNew: true,
+        upgrade: true,
+        rememberUpgrade: false,
+        reconnectionAttempts: 2,
       })
 
       const socket = socketRef.current
@@ -82,6 +94,13 @@ export function AdminWebSocket() {
 
       socket.on("connect_error", (error) => {
         console.error("[v0] Admin WebSocket connection error:", error)
+        if (process.env.NODE_ENV === "development") {
+          toast({
+            title: "Error de conexión",
+            description: "Problema con la conexión en tiempo real. Recarga la página.",
+            variant: "destructive",
+          })
+        }
       })
 
       socket.on("error", (error) => {
@@ -101,6 +120,10 @@ export function AdminWebSocket() {
   }, [toast])
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
+      return
+    }
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && socketRef.current?.disconnected) {
         console.log("[v0] Admin page became visible, reconnecting WebSocket")
