@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request, { params }: { params: { inventoryId: string } }) {
   try {
     const inventoryId = Number.parseInt(params.inventoryId)
@@ -38,11 +40,22 @@ export async function GET(request: Request, { params }: { params: { inventoryId:
 export async function PUT(request: Request, { params }: { params: { inventoryId: string } }) {
   try {
     const inventoryId = Number.parseInt(params.inventoryId)
-    const { purchase_price, purchase_quantity, supplier_name, supplier_contact, notes } = await request.json()
+    const { purchase_price, purchase_quantity, supplier_name, supplier_contact, notes, update_product_stock } =
+      await request.json()
 
     if (isNaN(inventoryId) || inventoryId <= 0) {
       return NextResponse.json({ error: "Invalid inventory ID" }, { status: 400 })
     }
+
+    const currentInventory = await sql`
+      SELECT product_id, purchase_price, purchase_quantity FROM inventory WHERE id = ${inventoryId}
+    `
+
+    if (currentInventory.length === 0) {
+      return NextResponse.json({ error: "Inventory record not found" }, { status: 404 })
+    }
+
+    const productId = currentInventory[0].product_id
 
     const result = await sql`
       UPDATE inventory 
@@ -57,8 +70,32 @@ export async function PUT(request: Request, { params }: { params: { inventoryId:
       RETURNING *
     `
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Inventory record not found" }, { status: 404 })
+    if (
+      update_product_stock !== false &&
+      (purchase_price !== currentInventory[0].purchase_price ||
+        purchase_quantity !== currentInventory[0].purchase_quantity)
+    ) {
+      await sql`
+        UPDATE products 
+        SET 
+          cost_price = ${purchase_price},
+          stock_quantity = ${purchase_quantity},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${productId}
+      `
+
+      try {
+        const { notifyStockUpdated, notifyInventoryChanged } = require("@/lib/websocket-server.js")
+        notifyStockUpdated(productId, purchase_quantity)
+        notifyInventoryChanged({
+          ...result[0],
+          action: "updated",
+        })
+        console.log("[v0] Real-time notifications sent for inventory update")
+      } catch (wsError) {
+        console.error("[v0] WebSocket notification failed:", wsError)
+        // Don't fail the request if WebSocket fails
+      }
     }
 
     return NextResponse.json(result[0])

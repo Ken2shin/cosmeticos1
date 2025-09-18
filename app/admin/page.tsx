@@ -3,7 +3,7 @@
 import { AdminDashboard } from "@/components/admin/admin-dashboard"
 import { AdminHeader } from "@/components/admin/admin-header"
 import { NotificationPermission } from "@/components/notifications/notification-permission"
-import { AdminWebSocket } from "@/components/websocket/admin-websocket"
+import { AdminSSE } from "@/components/sse/admin-sse"
 
 export default function AdminPage() {
   return (
@@ -16,7 +16,7 @@ export default function AdminPage() {
           <AdminDashboard />
         </div>
 
-        <AdminWebSocket />
+        <AdminSSE />
       </main>
     </div>
   )
