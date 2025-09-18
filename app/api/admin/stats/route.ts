@@ -1,33 +1,26 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql } from "@/lib/db"
 
 export async function GET() {
   try {
     console.log("[v0] Admin Stats API: Fetching real-time dashboard statistics")
 
-    const productsResult = await sql`SELECT COUNT(*) as count FROM products WHERE is_active = true`
-    console.log("[v0] Products count result:", productsResult)
-
-    const ordersResult = await sql`SELECT COUNT(*) as count FROM orders`
-    console.log("[v0] Orders count result:", ordersResult)
-
-    const revenueResult = await sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders`
-    console.log("[v0] Revenue result:", revenueResult)
-
-    const customersResult = await sql`SELECT COUNT(DISTINCT customer_email) as count FROM orders`
-    console.log("[v0] Customers result:", customersResult)
+    const [productsResult, ordersResult, revenueResult, customersResult] = await Promise.allSettled([
+      sql`SELECT COUNT(*) as count FROM products WHERE is_active = true`,
+      sql`SELECT COUNT(*) as count FROM orders`,
+      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders`,
+      sql`SELECT COUNT(DISTINCT customer_email) as count FROM orders`,
+    ])
 
     const stats = {
-      totalProducts: Number.parseInt(productsResult[0]?.count || "0"),
-      totalOrders: Number.parseInt(ordersResult[0]?.count || "0"),
-      totalRevenue: Number.parseFloat(revenueResult[0]?.total || "0"),
-      activeCustomers: Number.parseInt(customersResult[0]?.count || "0"),
+      totalProducts: productsResult.status === "fulfilled" ? Number.parseInt(productsResult.value[0]?.count || "0") : 0,
+      totalOrders: ordersResult.status === "fulfilled" ? Number.parseInt(ordersResult.value[0]?.count || "0") : 0,
+      totalRevenue: revenueResult.status === "fulfilled" ? Number.parseFloat(revenueResult.value[0]?.total || "0") : 0,
+      activeCustomers:
+        customersResult.status === "fulfilled" ? Number.parseInt(customersResult.value[0]?.count || "0") : 0,
     }
 
     console.log("[v0] Admin Stats API: Statistics calculated:", stats)
-
     return NextResponse.json(stats)
   } catch (error) {
     console.error("[v0] Admin Stats API: Error fetching stats:", error)
