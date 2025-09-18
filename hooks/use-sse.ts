@@ -16,6 +16,11 @@ export function useSSE(url: string) {
     }
 
     try {
+      if (!url || typeof url !== "string") {
+        console.error("[SSE] Invalid URL provided:", url)
+        return
+      }
+
       const eventSource = new EventSource(url)
       eventSourceRef.current = eventSource
 
@@ -37,17 +42,29 @@ export function useSSE(url: string) {
       eventSource.onerror = (error) => {
         console.error("[SSE] Connection error:", error)
         setIsConnected(false)
+
+        if (eventSource.readyState === EventSource.CLOSED) {
+          console.log("[SSE] Connection permanently closed")
+          return
+        }
+
         eventSource.close()
 
-        // Attempt to reconnect
+        // Attempt to reconnect with exponential backoff
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current++
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
+
+          console.log(
+            `[SSE] Scheduling reconnect attempt ${reconnectAttempts.current}/${maxReconnectAttempts} in ${delay}ms`,
+          )
 
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log(`[SSE] Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`)
             connect()
           }, delay)
+        } else {
+          console.log("[SSE] Max reconnection attempts reached, giving up")
         }
       }
     } catch (error) {
@@ -57,7 +74,9 @@ export function useSSE(url: string) {
   }
 
   useEffect(() => {
-    connect()
+    if (url && typeof url === "string") {
+      connect()
+    }
 
     return () => {
       if (eventSourceRef.current) {
@@ -69,5 +88,16 @@ export function useSSE(url: string) {
     }
   }, [url])
 
-  return { isConnected, lastMessage }
+  const disconnect = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+    setIsConnected(false)
+    reconnectAttempts.current = 0
+  }
+
+  return { isConnected, lastMessage, disconnect }
 }
