@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -265,16 +265,18 @@ export function OrderManagement() {
     } catch (error) {
       console.error("[v0] Error generating PDF invoice:", error)
       let errorMessage = "Error desconocido"
-      if (error instanceof Error) {
-        if (error.message.includes("404")) {
-          errorMessage = "Pedido no encontrado"
-        } else if (error.message.includes("fetch")) {
-          errorMessage = "Error de conexión al servidor"
-        } else if (error.message.includes("jsPDF")) {
-          errorMessage = "Error al cargar la librería PDF"
-        } else {
-          errorMessage = error.message
-        }
+      const errorMsg =
+        typeof error === "object" && error !== null && "message" in error
+          ? String((error as Error).message)
+          : String(error)
+      if (errorMsg.includes("404")) {
+        errorMessage = "Pedido no encontrado"
+      } else if (errorMsg.includes("fetch")) {
+        errorMessage = "Error de conexión al servidor"
+      } else if (errorMsg.includes("jsPDF")) {
+        errorMessage = "Error al cargar la librería PDF"
+      } else {
+        errorMessage = errorMsg
       }
       toast({
         title: "Error al generar PDF",
@@ -410,11 +412,12 @@ export function OrderManagement() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="search">Buscar</Label>
+              <Label htmlFor="order-search">Buscar</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  id="search"
+                  id="order-search"
+                  name="search"
                   placeholder="Nombre, email, ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -424,9 +427,9 @@ export function OrderManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Estado</Label>
+              <Label htmlFor="order-status">Estado</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
+                <SelectTrigger id="order-status">
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
@@ -439,14 +442,21 @@ export function OrderManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Fecha</Label>
-              <Input id="date" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+              <Label htmlFor="order-date">Fecha</Label>
+              <Input
+                id="order-date"
+                name="date"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="minAmount">Monto Mín.</Label>
+              <Label htmlFor="order-min-amount">Monto Mín.</Label>
               <Input
-                id="minAmount"
+                id="order-min-amount"
+                name="minAmount"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
@@ -456,9 +466,10 @@ export function OrderManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="maxAmount">Monto Máx.</Label>
+              <Label htmlFor="order-max-amount">Monto Máx.</Label>
               <Input
-                id="maxAmount"
+                id="order-max-amount"
+                name="maxAmount"
                 type="number"
                 step="0.01"
                 placeholder="999999.99"
@@ -469,7 +480,12 @@ export function OrderManagement() {
 
             <div className="space-y-2">
               <Label>&nbsp;</Label>
-              <Button onClick={clearFilters} variant="outline" className="w-full bg-transparent">
+              <Button
+                onClick={clearFilters}
+                variant="outline"
+                className="w-full bg-transparent"
+                aria-label="Limpiar todos los filtros de búsqueda"
+              >
                 Limpiar Filtros
               </Button>
             </div>
@@ -532,7 +548,12 @@ export function OrderManagement() {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fetchOrderDetails(order.id)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchOrderDetails(order.id)}
+                      aria-label={`Ver detalles del pedido ${order.id}`}
+                    >
                       <Eye className="w-4 h-4 mr-1" />
                       Ver Detalles
                     </Button>
@@ -544,6 +565,7 @@ export function OrderManagement() {
                         setNewStatus(order.status)
                       }}
                       className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      aria-label={`Cambiar estado del pedido ${order.id}`}
                     >
                       <Edit className="w-4 h-4 mr-1" />
                       Estado
@@ -553,6 +575,7 @@ export function OrderManagement() {
                       size="sm"
                       onClick={() => generateInvoice(order.id)}
                       className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      aria-label={`Descargar PDF del pedido ${order.id}`}
                     >
                       <Download className="w-4 h-4 mr-1" />
                       Descargar PDF
@@ -562,6 +585,7 @@ export function OrderManagement() {
                       size="sm"
                       onClick={() => setDeleteConfirm(order.id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      aria-label={`Eliminar pedido ${order.id}`}
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
                       Eliminar
@@ -600,16 +624,20 @@ export function OrderManagement() {
       )}
 
       <Dialog open={statusDialog !== null} onOpenChange={() => setStatusDialog(null)}>
-        <DialogContent>
+        <DialogContent aria-describedby="status-dialog-description">
           <DialogHeader>
             <DialogTitle>Cambiar Estado del Pedido</DialogTitle>
+            <DialogDescription id="status-dialog-description">
+              Selecciona el nuevo estado para el pedido #{statusDialog?.orderId}. Esta acción actualizará el estado del
+              pedido en el sistema.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p>Cambiar estado del pedido #{statusDialog?.orderId}</p>
             <div className="space-y-2">
-              <Label htmlFor="status">Nuevo Estado</Label>
-              <Select value={newStatus} onValueChange={setNewStatus}>
-                <SelectTrigger>
+              <Label htmlFor="new-status">Nuevo Estado</Label>
+              <Select value={newStatus} onValueChange={setNewStatus} aria-describedby="status-dialog-description">
+                <SelectTrigger id="new-status">
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -620,12 +648,13 @@ export function OrderManagement() {
               </Select>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setStatusDialog(null)}>
+              <Button variant="outline" onClick={() => setStatusDialog(null)} aria-label="Cancelar cambio de estado">
                 Cancelar
               </Button>
               <Button
                 onClick={() => statusDialog && updateOrderStatus(statusDialog.orderId, newStatus)}
                 disabled={newStatus === statusDialog?.currentStatus}
+                aria-label={`Confirmar cambio de estado a ${getStatusText(newStatus)}`}
               >
                 Actualizar Estado
               </Button>
@@ -635,9 +664,13 @@ export function OrderManagement() {
       </Dialog>
 
       <Dialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent>
+        <DialogContent aria-describedby="delete-dialog-description">
           <DialogHeader>
             <DialogTitle>Confirmar Eliminación</DialogTitle>
+            <DialogDescription id="delete-dialog-description">
+              Esta acción eliminará permanentemente el pedido #{deleteConfirm} y no se puede deshacer. El stock de los
+              productos NO será restaurado.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p>¿Estás seguro de que quieres eliminar el pedido #{deleteConfirm}?</p>
@@ -645,10 +678,18 @@ export function OrderManagement() {
               Esta acción NO restaurará el stock de los productos y no se puede deshacer.
             </p>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirm(null)}
+                aria-label="Cancelar eliminación del pedido"
+              >
                 Cancelar
               </Button>
-              <Button variant="destructive" onClick={() => deleteConfirm && deleteOrder(deleteConfirm)}>
+              <Button
+                variant="destructive"
+                onClick={() => deleteConfirm && deleteOrder(deleteConfirm)}
+                aria-label={`Confirmar eliminación del pedido ${deleteConfirm}`}
+              >
                 Eliminar Pedido
               </Button>
             </div>
@@ -657,12 +698,15 @@ export function OrderManagement() {
       </Dialog>
 
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" aria-describedby="order-details-description">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
               Detalles del Pedido #{selectedOrder?.id}
             </DialogTitle>
+            <DialogDescription id="order-details-description">
+              Información completa del pedido incluyendo datos del cliente, productos y totales.
+            </DialogDescription>
           </DialogHeader>
 
           {selectedOrder && (
@@ -761,6 +805,7 @@ export function OrderManagement() {
                     setNewStatus(selectedOrder.status)
                   }}
                   className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                  aria-label={`Cambiar estado del pedido ${selectedOrder.id}`}
                 >
                   <Edit className="w-4 h-4 mr-2" />
                   Cambiar Estado
@@ -769,6 +814,7 @@ export function OrderManagement() {
                   variant="outline"
                   onClick={() => generateInvoice(selectedOrder.id)}
                   className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  aria-label={`Descargar PDF del pedido ${selectedOrder.id}`}
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Descargar PDF
@@ -779,11 +825,14 @@ export function OrderManagement() {
                     setShowDetails(false)
                     setDeleteConfirm(selectedOrder.id)
                   }}
+                  aria-label={`Eliminar pedido ${selectedOrder.id}`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Eliminar Pedido
                 </Button>
-                <Button onClick={() => setShowDetails(false)}>Cerrar</Button>
+                <Button onClick={() => setShowDetails(false)} aria-label="Cerrar detalles del pedido">
+                  Cerrar
+                </Button>
               </div>
             </div>
           )}

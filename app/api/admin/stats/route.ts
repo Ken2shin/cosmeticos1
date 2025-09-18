@@ -6,10 +6,10 @@ export async function GET() {
     console.log("[v0] Admin Stats API: Fetching real-time dashboard statistics")
 
     const [productsResult, ordersResult, revenueResult, customersResult] = await Promise.allSettled([
-      sql`SELECT COUNT(*) as count FROM products WHERE is_active = true`,
-      sql`SELECT COUNT(*) as count FROM orders`,
-      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders`,
-      sql`SELECT COUNT(DISTINCT customer_email) as count FROM orders`,
+      sql`SELECT COUNT(*) as count FROM products WHERE is_active = true`.catch(() => [{ count: 0 }]),
+      sql`SELECT COUNT(*) as count FROM orders`.catch(() => [{ count: 0 }]),
+      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders`.catch(() => [{ total: 0 }]),
+      sql`SELECT COUNT(DISTINCT customer_email) as count FROM orders`.catch(() => [{ count: 0 }]),
     ])
 
     const stats = {
@@ -32,6 +32,6 @@ export async function GET() {
       activeCustomers: 0,
     }
 
-    return NextResponse.json(defaultStats)
+    return NextResponse.json(defaultStats, { status: 200 })
   }
 }

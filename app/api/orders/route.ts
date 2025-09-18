@@ -204,7 +204,11 @@ export async function POST(request: Request) {
         }
       } catch (itemError) {
         console.error("[v0] Orders API: Error processing item:", itemError)
-        throw new Error(`Error processing item ${item.product_id || item.id}: ${itemError.message}`)
+        const errorMessage =
+          typeof itemError === "object" && itemError !== null && "message" in itemError
+            ? (itemError as { message?: string }).message
+            : String(itemError);
+        throw new Error(`Error processing item ${item.product_id || item.id}: ${errorMessage}`)
       }
     }
 
@@ -255,6 +259,10 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error("[v0] Orders API: Error:", error)
-    return NextResponse.json({ error: "Error al procesar el pedido: " + error.message }, { status: 500 })
+    const errorMessage =
+      typeof error === "object" && error !== null && "message" in error
+        ? (error as { message?: string }).message
+        : String(error);
+    return NextResponse.json({ error: "Error al procesar el pedido: " + errorMessage }, { status: 500 })
   }
 }

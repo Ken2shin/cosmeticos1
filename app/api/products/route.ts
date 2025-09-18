@@ -23,11 +23,23 @@ export async function GET() {
       FROM products 
       WHERE is_active = true
       ORDER BY created_at DESC
-    `
+    ` as Array<{
+      id: number
+      name: string
+      description: string | null
+      price: number
+      stock_quantity: number | string
+      brand: string | null
+      category: string | null
+      image_url: string | null
+      is_active: boolean
+      created_at: string
+      updated_at: string
+    }>
 
-    const validatedProducts = products.map((product: any) => ({
+    const validatedProducts = products.map((product) => ({
       ...product,
-      stock_quantity: Math.max(0, Number.parseInt(product.stock_quantity) || 0), // Force non-negative integers
+      stock_quantity: Math.max(0, Number.parseInt(product.stock_quantity as string) || 0), // Force non-negative integers
     }))
 
     console.log(
@@ -72,12 +84,12 @@ export async function POST(request: Request) {
     const newProduct = result[0]
 
     try {
-      const { notifyNewProduct } = require("@/lib/websocket-server.js")
+      const { notifyNewProduct } = await import("@/lib/sse-notifications")
       notifyNewProduct(newProduct)
-      console.log("[v0] WebSocket notification sent for new product")
-    } catch (wsError) {
-      console.error("[v0] WebSocket notification failed:", wsError)
-      // Don't fail the request if WebSocket fails
+      console.log("[v0] SSE notification sent for new product")
+    } catch (sseError) {
+      console.error("[v0] SSE notification failed:", sseError)
+      // Don't fail the request if SSE fails
     }
 
     return NextResponse.json(newProduct, { status: 201 })
