@@ -50,7 +50,9 @@ export async function testConnection() {
 }
 
 export function isDatabaseAvailable(): boolean {
-  return databaseUrl !== null && databaseUrl !== undefined
+  const hasUrl = databaseUrl !== null && databaseUrl !== undefined && databaseUrl.trim() !== ""
+  console.log("[v0] Database availability check:", { hasUrl, databaseUrl: databaseUrl ? "present" : "missing" })
+  return hasUrl
 }
 
 export async function safeQuery(queryFn: () => Promise<any>, fallback: any = []) {
@@ -60,9 +62,11 @@ export async function safeQuery(queryFn: () => Promise<any>, fallback: any = [])
   }
 
   try {
-    return await queryFn()
+    const result = await queryFn()
+    console.log("[Database] Query successful, returned", Array.isArray(result) ? result.length : "non-array", "items")
+    return result
   } catch (error) {
-    console.error("[Database] Query failed:", error)
+    console.error("[Database] Query failed, using fallback:", error)
     return fallback
   }
 }

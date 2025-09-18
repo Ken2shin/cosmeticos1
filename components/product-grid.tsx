@@ -85,10 +85,10 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
       console.log(
         "[v0] Products fetched for grid:",
         data?.length || 0,
-        "Stock data:",
+        "Products:",
         data?.map((p: Product) => ({ name: p.name, stock: p.stock_quantity })),
       )
-      setProducts(data || [])
+      setProducts(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("[v0] Error fetching products:", error)
       setProducts([])
