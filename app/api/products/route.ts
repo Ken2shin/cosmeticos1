@@ -4,17 +4,17 @@ import { sql, isDatabaseAvailable, safeQuery } from "@/lib/db"
 export const dynamic = "force-dynamic"
 
 interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price: number;
-  stock_quantity: number | string;
-  brand: string;
-  category: string;
-  image_url: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  id: number | string
+  name: string
+  description: string
+  price: number
+  stock_quantity: number
+  brand: string
+  category: string
+  image_url: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export async function GET() {
@@ -43,43 +43,64 @@ export async function GET() {
 
     let finalProducts = products
     if (!products || products.length === 0) {
-      console.log("[v0] No products found in database, checking if we should provide samples")
-      if (!isDatabaseAvailable()) {
-        finalProducts = [
-          {
-            id: 1,
-            name: "Labial Mate Rosa",
-            description: "Labial de larga duración con acabado mate",
-            price: 25.99,
-            stock_quantity: 10,
-            brand: "Beauty Co",
-            category: "labial",
-            image_url: "/pink-matte-lipstick.jpg",
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            name: "Base Líquida Natural",
-            description: "Base de maquillaje con cobertura natural",
-            price: 45.5,
-            stock_quantity: 8,
-            brand: "Marbellin",
-            category: "marbellin",
-            image_url: "/liquid-foundation-natural.jpg",
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ]
-        console.log("[v0] Providing sample products for client display")
-      }
+      console.log("[v0] No products found in database, providing sample products")
+      finalProducts = [
+        {
+          id: 1,
+          name: "Labial Mate Rosa",
+          description: "Labial de larga duración con acabado mate",
+          price: 25.99,
+          stock_quantity: 10,
+          brand: "Beauty Co",
+          category: "labial",
+          image_url: "/pink-matte-lipstick.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          name: "Base Líquida Natural",
+          description: "Base de maquillaje con cobertura natural",
+          price: 45.5,
+          stock_quantity: 8,
+          brand: "Marbellin",
+          category: "marbellin",
+          image_url: "/liquid-foundation-natural.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 3,
+          name: "Máscara de Pestañas",
+          description: "Máscara voluminizadora resistente al agua",
+          price: 32.0,
+          stock_quantity: 15,
+          brand: "Beauty Co",
+          category: "ojos",
+          image_url: "/mascara-pesta-as-beauty.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ]
+      console.log("[v0] Providing sample products for client display")
     }
 
     const validatedProducts = finalProducts.map((product: Product) => ({
       ...product,
-      stock_quantity: Math.max(0, Number.parseInt(product.stock_quantity as string) || 0),
+      id: product.id || Math.random(),
+      name: product.name || "Producto sin nombre",
+      description: product.description || "Sin descripción",
+      price: Number(product.price) || 0,
+      stock_quantity: Math.max(0, Number(product.stock_quantity) || 0),
+      brand: product.brand || "Sin marca",
+      category: product.category || "general",
+      image_url: product.image_url || "/beauty-product-display.png",
+      is_active: Boolean(product.is_active),
+      created_at: product.created_at || new Date().toISOString(),
+      updated_at: product.updated_at || new Date().toISOString(),
     }))
 
     console.log(
@@ -119,6 +140,7 @@ export async function GET() {
     ]
 
     return NextResponse.json(sampleProducts, {
+      status: 200,
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
       },
@@ -159,7 +181,6 @@ export async function POST(request: Request) {
       console.log("[v0] SSE notification sent for new product")
     } catch (sseError) {
       console.error("[v0] SSE notification failed:", sseError)
-      // Don't fail the request if SSE fails
     }
 
     return NextResponse.json(newProduct, { status: 201 })

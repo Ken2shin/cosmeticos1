@@ -31,7 +31,7 @@ export function CategoryFilter({ selectedCategory, onCategoryChange }: CategoryF
 
       const data = await response.json()
       console.log("[v0] Categories fetched successfully:", data)
-      setCategories(data || [])
+      setCategories(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error("[v0] Error fetching categories:", error)
       setCategories([
@@ -60,17 +60,22 @@ export function CategoryFilter({ selectedCategory, onCategoryChange }: CategoryF
       >
         Todos
       </Button>
-      {categories.map((category) => (
-        <Button
-          key={category.id}
-          variant={selectedCategory === category.name ? "default" : "outline"}
-          onClick={() => handleCategoryChange(category.name)}
-          size="sm"
-          className="transition-all duration-200 hover:scale-105"
-        >
-          {category.name}
-        </Button>
-      ))}
+      {Array.isArray(categories) &&
+        categories.map((category) => {
+          if (!category || !category.id || !category.name) return null
+
+          return (
+            <Button
+              key={category.id}
+              variant={selectedCategory === category.name ? "default" : "outline"}
+              onClick={() => handleCategoryChange(category.name)}
+              size="sm"
+              className="transition-all duration-200 hover:scale-105"
+            >
+              {category.name}
+            </Button>
+          )
+        })}
     </div>
   )
 }

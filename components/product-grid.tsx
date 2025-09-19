@@ -21,7 +21,10 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
 
   const fetchProducts = useCallback(async () => {
     try {
+      console.log("[v0] Fetching products for management...")
       setError(null)
+      setLoading(true)
+
       const timestamp = Date.now()
       const response = await fetch(`/api/products?t=${timestamp}`, {
         cache: "no-store",
@@ -37,7 +40,9 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
       }
 
       const data = await response.json()
-      setProducts(Array.isArray(data) ? data : [])
+      const validProducts = Array.isArray(data) ? data : []
+      console.log("[v0] Products fetched for management:", validProducts.length)
+      setProducts(validProducts)
     } catch (error) {
       console.error("[v0] Error fetching products:", error)
       setError("Error al cargar productos")
@@ -48,26 +53,34 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   }, [])
 
   useEffect(() => {
-    fetchProducts()
-  }, [fetchProducts])
+    if (mounted) {
+      fetchProducts()
+    }
+  }, [fetchProducts, mounted])
 
   useEffect(() => {
+    if (!mounted) return
+
     const handleProductUpdate = () => {
       fetchProducts()
     }
 
     const handleStockUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent
-      const { productId, newStock } = customEvent.detail
-      setProducts((prevProducts) =>
-        prevProducts.map((product) => (product.id === productId ? { ...product, stock_quantity: newStock } : product)),
-      )
+      const { productId, newStock } = (event as CustomEvent).detail
+      setProducts((prevProducts) => {
+        const currentProducts = Array.isArray(prevProducts) ? prevProducts : []
+        return currentProducts.map((product) =>
+          product.id === productId ? { ...product, stock_quantity: newStock } : product,
+        )
+      })
     }
 
     const handleProductDeleted = (event: Event) => {
-      const customEvent = event as CustomEvent
-      const { productId } = customEvent.detail
-      setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productId))
+      const { productId } = (event as CustomEvent).detail
+      setProducts((prevProducts) => {
+        const currentProducts = Array.isArray(prevProducts) ? prevProducts : []
+        return currentProducts.filter((product) => product.id !== productId)
+      })
     }
 
     const events = [
@@ -79,24 +92,28 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     ]
 
     events.forEach(({ name, handler }) => {
-      window.addEventListener(name, handler)
+      window.addEventListener(name, handler as EventListener)
     })
 
     return () => {
       events.forEach(({ name, handler }) => {
-        window.removeEventListener(name, handler)
+        window.removeEventListener(name, handler as EventListener)
       })
     }
-  }, [fetchProducts])
+  }, [fetchProducts, mounted])
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    const validProducts = Array.isArray(products) ? products : []
+
+    return validProducts.filter((product) => {
+      if (!product || typeof product !== "object") return false
+
       const categoryMatch =
         selectedCategory === "all" || (product.category?.toLowerCase() || "") === selectedCategory.toLowerCase()
 
       const searchMatch =
         searchTerm === "" ||
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (product.brand && product.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
 
@@ -146,7 +163,9 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     )
   }
 
-  if (filteredProducts.length === 0) {
+  const validFilteredProducts = Array.isArray(filteredProducts) ? filteredProducts : []
+
+  if (validFilteredProducts.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground text-lg">
@@ -154,7 +173,7 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
             ? `No se encontraron productos que coincidan con "${searchTerm}"`
             : "No se encontraron productos en esta categoría."}
         </p>
-        {products.length > 0 && (
+        {Array.isArray(products) && products.length > 0 && (
           <p className="text-sm text-muted-foreground mt-2">
             Total productos disponibles: {products.length} | Categoría: "{selectedCategory}" |
             {searchTerm && ` Búsqueda: "${searchTerm}"`}
@@ -166,18 +185,22 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {filteredProducts.map((product, index) => (
-        <div
-          key={product.id}
-          className="opacity-0 animate-in fade-in-0 duration-300"
-          style={{
-            animationDelay: `${Math.min(index * 25, 200)}ms`,
-            animationFillMode: "forwards",
-          }}
-        >
-          <ProductCard product={product} />
-        </div>
-      ))}
+      {validFilteredProducts.map((product, index) => {
+        if (!product || !product.id) return null
+
+        return (
+          <div
+            key={product.id}
+            className="opacity-0 animate-in fade-in-0 duration-300"
+            style={{
+              animationDelay: `${Math.min(index * 25, 200)}ms`,
+              animationFillMode: "forwards",
+            }}
+          >
+            <ProductCard product={product} />
+          </div>
+        )
+      })}
     </div>
   )
 }
