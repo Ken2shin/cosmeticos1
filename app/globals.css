@@ -3,7 +3,7 @@
 
 /* Removed tw-animate-css import to reduce bundle size */
 
-/* Removed invalid @custom-variant at-rule */
+@custom-variant dark (&:is(.dark *));
 
 /* Simplified animations for better mobile performance */
 @keyframes shimmer {
@@ -47,12 +47,39 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeSpeed;
     overscroll-behavior: none;
+    /* Prevent memory leaks on mobile */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
   }
 
   /* Prevent excessive borders on mobile */
   .border-2,
   .border-dashed {
     border-width: 1px !important;
+  }
+
+  /* Optimize dialog rendering on mobile */
+  [data-radix-popper-content-wrapper] {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  /* Ensure dialogs are fully opaque on mobile */
+  [role="dialog"] {
+    background-color: hsl(var(--background)) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Reduce animation complexity on low-end devices */
+  .animate-pulse {
+    animation-duration: 2s !important;
+  }
+
+  /* Optimize image rendering */
+  img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
   }
 }
 
@@ -127,7 +154,7 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
-:root {
+@theme inline {
   /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -169,11 +196,9 @@
 
 @layer base {
   * {
-    border-color: var(--border);
-    outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
+    @apply border-border outline-ring/50;
   }
   body {
-    background-color: var(--background);
-    color: var(--foreground);
+    @apply bg-background text-foreground;
   }
 }

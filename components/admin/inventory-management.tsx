@@ -1,17 +1,17 @@
 "use client"
 
 import type React from "react"
+import { toast } from "@/components/ui/use-toast"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, Package, Calendar } from "lucide-react"
+import { Plus, Edit, Trash2, Package, Calendar, X } from "lucide-react"
 
 interface InventoryRecord {
   id: number
@@ -57,48 +57,78 @@ export function InventoryManagement() {
     fetchProducts()
   }, [])
 
-  const fetchInventory = async () => {
+  const memoizedProducts = useMemo(() => products, [products])
+
+  const fetchInventory = useCallback(async () => {
     try {
+      setLoading(true)
       const response = await fetch("/api/inventory")
       if (response.ok) {
         const data = await response.json()
         setInventory(Array.isArray(data) ? data : [])
       } else {
-        console.error("Error fetching inventory: HTTP", response.status)
-        setInventory([])
+        throw new Error(`HTTP ${response.status}: Error fetching inventory`)
       }
     } catch (error) {
-      console.error("Error fetching inventory:", error)
+      console.error("Error al cargar inventario:", error)
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo cargar el inventario. Verifica tu conexión.",
+        variant: "destructive",
+      })
       setInventory([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
-      console.log("[v0] Fetching products for inventory selection")
-      const response = await fetch("/api/products")
+      const response = await fetch("/api/products", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Products fetched successfully:", data.length, "products")
         setProducts(Array.isArray(data) ? data : [])
       } else {
-        console.error("[v0] Error fetching products: HTTP", response.status)
-        const errorText = await response.text()
-        console.error("[v0] Error details:", errorText)
-        setProducts([])
+        throw new Error(`HTTP ${response.status}: Error fetching products`)
       }
     } catch (error) {
-      console.error("[v0] Error fetching products:", error)
+      console.error("Error al cargar productos:", error)
+      toast({
+        title: "Error de productos",
+        description: "No se pudieron cargar los productos disponibles.",
+        variant: "destructive",
+      })
       setProducts([])
     }
-  }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     try {
+      if (formData.product_id === "no-products-available") {
+        toast({
+          title: "Sin productos",
+          description: "No hay productos disponibles para crear un registro de inventario.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!formData.product_id || !formData.purchase_price || !formData.purchase_quantity) {
+        toast({
+          title: "Campos requeridos",
+          description: "Por favor completa todos los campos obligatorios.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const url = editingRecord ? `/api/inventory/${editingRecord.id}` : "/api/inventory"
       const method = editingRecord ? "PUT" : "POST"
 
@@ -115,15 +145,26 @@ export function InventoryManagement() {
       })
 
       if (response.ok) {
-        alert(editingRecord ? "Registro actualizado exitosamente" : "Registro creado exitosamente")
+        const result = await response.json()
+        toast({
+          title: editingRecord ? "Registro actualizado" : "Registro creado",
+          description: editingRecord ? "El registro se actualizó exitosamente" : "El registro se creó exitosamente",
+          variant: "default",
+        })
+
         handleCloseForm()
-        fetchInventory()
+        await fetchInventory()
       } else {
-        throw new Error("Error al guardar registro")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Error al guardar registro")
       }
     } catch (error) {
-      console.error("Error saving inventory record:", error)
-      alert("Error al guardar registro")
+      console.error("Error al guardar registro de inventario:", error)
+      toast({
+        title: "Error al guardar",
+        description: error instanceof Error ? error.message : "Ocurrió un error al registrar la compra.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -147,14 +188,22 @@ export function InventoryManagement() {
         const response = await fetch(`/api/inventory/${recordId}`, { method: "DELETE" })
 
         if (response.ok) {
-          alert("Registro eliminado exitosamente")
-          fetchInventory()
+          toast({
+            title: "Registro eliminado",
+            description: "El registro se eliminó exitosamente",
+            variant: "default",
+          })
+          await fetchInventory()
         } else {
           throw new Error("Error al eliminar registro")
         }
       } catch (error) {
-        console.error("Error deleting inventory record:", error)
-        alert("Error al eliminar registro")
+        console.error("Error al eliminar registro:", error)
+        toast({
+          title: "Error al eliminar",
+          description: "No se pudo eliminar el registro. Intenta nuevamente.",
+          variant: "destructive",
+        })
       }
     }
   }
@@ -295,113 +344,159 @@ export function InventoryManagement() {
         </div>
       )}
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingRecord ? "Editar Registro de Inventario" : "Nueva Compra de Inventario"}</DialogTitle>
-          </DialogHeader>
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleCloseForm} />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="product_id">Producto *</Label>
-              <Select
-                value={formData.product_id}
-                onValueChange={(value) => setFormData({ ...formData, product_id: value })}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar producto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(products) && products.length > 0 ? (
-                    products.map((product) => (
-                      <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.name} {product.brand && `- ${product.brand}`}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="" disabled>
-                      {products.length === 0 ? "No hay productos disponibles" : "Cargando productos..."}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="purchase_price">Precio de Compra *</Label>
-                <Input
-                  id="purchase_price"
-                  type="number"
-                  step="0.01"
-                  value={formData.purchase_price}
-                  onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="purchase_quantity">Cantidad *</Label>
-                <Input
-                  id="purchase_quantity"
-                  type="number"
-                  value={formData.purchase_quantity}
-                  onChange={(e) => setFormData({ ...formData, purchase_quantity: e.target.value })}
-                  required
-                />
+          {/* Modal Content */}
+          <div className="relative bg-background rounded-lg border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-rose-50 to-pink-50 p-6 border-b">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {editingRecord ? "Editar Registro de Inventario" : "Nueva Compra de Inventario"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {editingRecord
+                      ? "Actualiza la información del registro de inventario seleccionado."
+                      : "Registra una nueva compra de productos para el inventario."}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCloseForm}
+                  className="h-8 w-8 p-0"
+                  aria-label="Cerrar formulario"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="current_stock">Stock Actual *</Label>
-              <Input
-                id="current_stock"
-                type="number"
-                value={formData.current_stock}
-                onChange={(e) => setFormData({ ...formData, current_stock: e.target.value })}
-                placeholder="Cantidad de piezas disponibles"
-                required
-              />
-            </div>
+            {/* Form */}
+            <div className="p-6">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="inventory-product">Producto *</Label>
+                  <Select
+                    value={formData.product_id}
+                    onValueChange={(value) => setFormData({ ...formData, product_id: value })}
+                    required
+                  >
+                    <SelectTrigger id="inventory-product">
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.isArray(memoizedProducts) && memoizedProducts.length > 0 ? (
+                        memoizedProducts.map((product) => (
+                          <SelectItem key={product.id} value={product.id.toString()}>
+                            {product.name} {product.brand && `- ${product.brand}`}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-products-available" disabled>
+                          {memoizedProducts.length === 0 ? "No hay productos disponibles" : "Cargando productos..."}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div>
-              <Label htmlFor="supplier_name">Proveedor</Label>
-              <Input
-                id="supplier_name"
-                value={formData.supplier_name}
-                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-              />
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="inventory-purchase-price">Precio de Compra *</Label>
+                    <Input
+                      id="inventory-purchase-price"
+                      name="purchase_price"
+                      type="number"
+                      step="0.01"
+                      value={formData.purchase_price}
+                      onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                      required
+                    />
+                  </div>
 
-            <div>
-              <Label htmlFor="supplier_contact">Contacto del Proveedor</Label>
-              <Input
-                id="supplier_contact"
-                value={formData.supplier_contact}
-                onChange={(e) => setFormData({ ...formData, supplier_contact: e.target.value })}
-              />
-            </div>
+                  <div>
+                    <Label htmlFor="inventory-purchase-quantity">Cantidad *</Label>
+                    <Input
+                      id="inventory-purchase-quantity"
+                      name="purchase_quantity"
+                      type="number"
+                      value={formData.purchase_quantity}
+                      onChange={(e) => setFormData({ ...formData, purchase_quantity: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <Label htmlFor="notes">Notas</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
-            </div>
+                <div>
+                  <Label htmlFor="inventory-current-stock">Stock Actual *</Label>
+                  <Input
+                    id="inventory-current-stock"
+                    name="current_stock"
+                    type="number"
+                    value={formData.current_stock}
+                    onChange={(e) => setFormData({ ...formData, current_stock: e.target.value })}
+                    placeholder="Cantidad de piezas disponibles"
+                    required
+                  />
+                </div>
 
-            <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={handleCloseForm}>
-                Cancelar
-              </Button>
-              <Button type="submit">{editingRecord ? "Actualizar" : "Registrar Compra"}</Button>
+                <div>
+                  <Label htmlFor="inventory-supplier-name">Proveedor</Label>
+                  <Input
+                    id="inventory-supplier-name"
+                    name="supplier_name"
+                    value={formData.supplier_name}
+                    onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="inventory-supplier-contact">Contacto del Proveedor</Label>
+                  <Input
+                    id="inventory-supplier-contact"
+                    name="supplier_contact"
+                    value={formData.supplier_contact}
+                    onChange={(e) => setFormData({ ...formData, supplier_contact: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="inventory-notes">Notas</Label>
+                  <Textarea
+                    id="inventory-notes"
+                    name="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCloseForm}
+                    aria-label="Cancelar registro de inventario"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    aria-label={editingRecord ? "Actualizar registro de inventario" : "Registrar nueva compra"}
+                  >
+                    {editingRecord ? "Actualizar" : "Registrar Compra"}
+                  </Button>
+                </div>
+              </form>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

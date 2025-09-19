@@ -20,9 +20,10 @@ const compressImage = (file: File, quality = 0.7): Promise<File> => {
     const img = new window.Image()
 
     img.onload = () => {
-      // Calculate optimal dimensions for mobile
-      const maxWidth = window.innerWidth < 768 ? 800 : 1200
-      const maxHeight = window.innerWidth < 768 ? 600 : 900
+      const isMobile = window.innerWidth < 768
+      const maxWidth = isMobile ? 400 : 800 // Reduced for better mobile performance
+      const maxHeight = isMobile ? 300 : 600 // Reduced for better mobile performance
+      const compressionQuality = isMobile ? 0.3 : quality // More aggressive compression on mobile
 
       let { width, height } = img
 
@@ -41,10 +42,9 @@ const compressImage = (file: File, quality = 0.7): Promise<File> => {
       canvas.width = width
       canvas.height = height
 
-      // Use better image rendering
       if (ctx) {
         ctx.imageSmoothingEnabled = true
-        ctx.imageSmoothingQuality = "high"
+        ctx.imageSmoothingQuality = isMobile ? "low" : "medium" // Lower quality for mobile
         ctx.drawImage(img, 0, 0, width, height)
       }
 
@@ -55,16 +55,25 @@ const compressImage = (file: File, quality = 0.7): Promise<File> => {
               type: "image/jpeg",
               lastModified: Date.now(),
             })
+            console.log(
+              `[v0] Image compressed: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`,
+            )
             resolve(compressedFile)
           } else {
             resolve(file)
           }
         },
         "image/jpeg",
-        quality,
+        compressionQuality,
       )
     }
 
+    img.onerror = () => {
+      console.error("[v0] Image compression failed, using original file")
+      resolve(file)
+    }
+
+    img.crossOrigin = "anonymous" // Added crossOrigin for better mobile compatibility
     img.src = URL.createObjectURL(file)
   })
 }
@@ -86,29 +95,29 @@ export function FileUpload({ onFileSelect, currentImage, accept = "image/*" }: F
 
   const handleFile = async (file: File) => {
     if (!file || !file.type.startsWith("image/")) {
+      console.log("[v0] Invalid file type:", file?.type)
       return
     }
 
-    const maxSize = window.innerWidth < 768 ? 1.5 * 1024 * 1024 : 3 * 1024 * 1024
+    console.log(`[v0] Processing image: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`)
+
+    const maxSize = window.innerWidth < 768 ? 2 * 1024 * 1024 : 5 * 1024 * 1024
 
     setIsLoading(true)
 
     try {
       let processedFile = file
 
-      if (file.size > 500 * 1024) {
-        // Compress if larger than 500KB
-        const quality = window.innerWidth < 768 ? 0.6 : 0.7
+      if (window.innerWidth < 768 || file.size > 50 * 1024) {
+        const quality = window.innerWidth < 768 ? 0.2 : 0.5 // More aggressive compression
         processedFile = await compressImage(file, quality)
       }
 
       if (processedFile.size > maxSize) {
-        const sizeMB = window.innerWidth < 768 ? "1.5MB" : "3MB"
-        alert(`Imagen muy grande después de compresión. Máximo: ${sizeMB}`)
-        return
+        console.log("[v0] File still too large, applying ultra compression")
+        processedFile = await compressImage(file, 0.1) // Ultra compression for large files
       }
 
-      // Clean up previous preview URL
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current)
       }
@@ -117,9 +126,11 @@ export function FileUpload({ onFileSelect, currentImage, accept = "image/*" }: F
       previewUrlRef.current = objectUrl
       setPreview(objectUrl)
       onFileSelect(processedFile)
+
+      console.log(`[v0] Image ready: ${(processedFile.size / 1024).toFixed(1)}KB`)
     } catch (error) {
-      console.error("Error processing image:", error)
-      alert("Error al procesar la imagen")
+      console.error("[v0] Error processing image:", error)
+      alert("Error al procesar la imagen. Intenta con una imagen más pequeña.")
     } finally {
       setIsLoading(false)
     }
@@ -181,7 +192,8 @@ export function FileUpload({ onFileSelect, currentImage, accept = "image/*" }: F
               <div className="mx-auto w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mb-3">
                 <div className="w-6 h-6 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
               </div>
-              <p className="text-sm font-medium">Comprimiendo imagen...</p>
+              <p className="text-sm font-medium">Optimizando imagen...</p>
+              <p className="text-xs text-muted-foreground mt-1">Comprimiendo para mejor rendimiento</p>
             </div>
           ) : preview ? (
             <div className="relative group">
@@ -211,9 +223,7 @@ export function FileUpload({ onFileSelect, currentImage, accept = "image/*" }: F
                 <ImageIcon className="w-6 h-6 text-rose-500" />
               </div>
               <p className="text-sm font-medium mb-1">Sube una imagen</p>
-              <p className="text-xs text-muted-foreground mb-3">
-                Máximo {window.innerWidth < 768 ? "1.5MB" : "3MB"} • Se comprimirá automáticamente
-              </p>
+              <p className="text-xs text-muted-foreground mb-3">Se optimizará automáticamente • Cualquier tamaño</p>
               <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="w-4 h-4 mr-2" />
                 Seleccionar
@@ -223,14 +233,7 @@ export function FileUpload({ onFileSelect, currentImage, accept = "image/*" }: F
         </CardContent>
       </Card>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={accept}
-        onChange={handleChange}
-        className="hidden"
-        capture="environment"
-      />
+      <input ref={fileInputRef} type="file" accept={accept} onChange={handleChange} className="hidden" />
     </div>
   )
 }

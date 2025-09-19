@@ -86,18 +86,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }, [product])
 
   const uploadFile = async (file: File): Promise<string> => {
-    // Mobile-specific file size limit (2MB instead of 10MB)
-    const maxSize = window.innerWidth < 768 ? 2 * 1024 * 1024 : 10 * 1024 * 1024
-
-    if (file.size > maxSize) {
-      const sizeMB = window.innerWidth < 768 ? "2MB" : "10MB"
-      toast({
-        title: "Archivo muy grande",
-        description: `El archivo debe ser menor a ${sizeMB} para dispositivos móviles`,
-        variant: "destructive",
-      })
-      return `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
-    }
+    console.log(`[v0] Uploading file: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`)
 
     const formData = new FormData()
     formData.append("file", file)
@@ -109,13 +98,16 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       })
 
       if (!response.ok) {
+        console.error("[v0] Upload failed:", response.status)
         const fallbackUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
         return fallbackUrl
       }
 
       const result = await response.json()
+      console.log("[v0] Upload successful:", result.url)
       return result.url
     } catch (error) {
+      console.error("[v0] Upload error:", error)
       const emergencyUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent("beauty cosmetic product " + Date.now())}`
       return emergencyUrl
     }
@@ -165,15 +157,18 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
     setUploading(true)
 
     try {
+      console.log("[v0] Starting product form submission")
       let imageUrl = formData.image_url
 
       if (selectedFile) {
         try {
+          console.log("[v0] Uploading selected file")
           imageUrl = await uploadFile(selectedFile)
           if (selectedFile && typeof window !== "undefined") {
             URL.revokeObjectURL(URL.createObjectURL(selectedFile))
           }
         } catch (uploadError) {
+          console.error("[v0] Upload failed, using placeholder:", uploadError)
           imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
         }
       } else if (!imageUrl) {
@@ -189,6 +184,8 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         sku: finalSKU,
       }
 
+      console.log("[v0] Submitting product data:", { ...productData, image_url: imageUrl ? "present" : "missing" })
+
       const url = product ? `/api/admin/products/${product.id}` : "/api/admin/products"
       const method = product ? "PUT" : "POST"
 
@@ -200,10 +197,12 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
+        console.error("[v0] Product save failed:", errorData)
         throw new Error(errorData.error || `Failed to save product: ${response.status}`)
       }
 
       const savedProduct = await response.json()
+      console.log("[v0] Product saved successfully:", savedProduct.id)
 
       if (product) {
         window.dispatchEvent(new CustomEvent("productUpdated", { detail: savedProduct }))
@@ -225,6 +224,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
         onClose(true)
       }, 50)
     } catch (error) {
+      console.error("[v0] Product form submission error:", error)
       toast({
         title: "Error al guardar",
         description: error instanceof Error ? error.message : "Error desconocido al guardar el producto",
@@ -236,8 +236,8 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-300">
-      <CardHeader>
+    <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-300 bg-background/95 backdrop-blur-sm border shadow-lg">
+      <CardHeader className="bg-gradient-to-r from-rose-50 to-pink-50 border-b">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -252,7 +252,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
           </CardTitle>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6 bg-background">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">

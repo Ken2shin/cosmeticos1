@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { toast } from "@/components/ui/use-toast"
+import { DialogDescription } from "@/components/ui/dialog"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -871,19 +872,26 @@ export function CustomerManagement() {
       )}
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent>
+        <DialogContent aria-describedby="customer-form-description">
           <DialogHeader>
             <DialogTitle>{editingCustomer ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
+            <DialogDescription id="customer-form-description">
+              {editingCustomer
+                ? "Modifica la información del cliente seleccionado."
+                : "Completa los datos para registrar un nuevo cliente en el sistema."}
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="name">Nombre *</Label>
+              <Label htmlFor="customer-name">Nombre *</Label>
               <Input
-                id="name"
+                id="customer-name"
+                name="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                aria-describedby="customer-form-description"
               />
             </div>
 
@@ -928,7 +936,7 @@ export function CustomerManagement() {
       </Dialog>
 
       <Dialog open={showOrderHistory} onOpenChange={setShowOrderHistory}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" aria-describedby="order-history-description">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Historial de Pedidos - {selectedCustomer?.name}</span>
@@ -944,6 +952,9 @@ export function CustomerManagement() {
                 </Button>
               )}
             </DialogTitle>
+            <DialogDescription id="order-history-description">
+              Visualiza todos los pedidos realizados por este cliente, incluyendo detalles de productos y fechas.
+            </DialogDescription>
           </DialogHeader>
 
           {loadingOrders ? (

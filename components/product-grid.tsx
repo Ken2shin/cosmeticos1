@@ -13,6 +13,11 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -99,14 +104,28 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     })
   }, [products, selectedCategory, searchTerm])
 
-  if (loading) {
+  if (!mounted) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="animate-pulse">
-            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_infinite] rounded-lg h-48 sm:h-64 mb-4"></div>
-            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_infinite] rounded h-4 mb-2"></div>
-            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_1.5s_infinite] rounded h-4 w-2/3"></div>
+            <div className="bg-gray-200 rounded-lg h-48 sm:h-64 mb-4"></div>
+            <div className="bg-gray-200 rounded h-4 mb-2"></div>
+            <div className="bg-gray-200 rounded h-4 w-2/3"></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="animate-pulse">
+            <div className="bg-gray-200 rounded-lg h-48 sm:h-64 mb-4"></div>
+            <div className="bg-gray-200 rounded h-4 mb-2"></div>
+            <div className="bg-gray-200 rounded h-4 w-2/3"></div>
           </div>
         ))}
       </div>
@@ -146,13 +165,14 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {filteredProducts.map((product, index) => (
         <div
           key={product.id}
-          className="animate-in fade-in-0 slide-in-from-bottom-4 duration-300"
+          className="opacity-0 animate-in fade-in-0 duration-300"
           style={{
-            animationDelay: `${Math.min(index * 50, 500)}ms`, // Reduced animation delay for mobile
+            animationDelay: `${Math.min(index * 25, 200)}ms`,
+            animationFillMode: "forwards",
           }}
         >
           <ProductCard product={product} />
