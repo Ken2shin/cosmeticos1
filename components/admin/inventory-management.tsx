@@ -42,6 +42,7 @@ export function InventoryManagement() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<InventoryRecord | null>(null)
+
   const [formData, setFormData] = useState({
     product_id: "",
     purchase_price: "",
@@ -52,12 +53,22 @@ export function InventoryManagement() {
     notes: "",
   })
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 6 // Reduced from showing all items
+
   useEffect(() => {
     fetchInventory()
     fetchProducts()
   }, [])
 
   const memoizedProducts = useMemo(() => products, [products])
+
+  const paginatedInventory = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    return inventory.slice(startIndex, startIndex + itemsPerPage)
+  }, [inventory, currentPage])
+
+  const totalPages = Math.ceil(inventory.length / itemsPerPage)
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -84,7 +95,6 @@ export function InventoryManagement() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      console.log("[v0] Fetching products for management...")
       const response = await fetch("/api/admin/products", {
         cache: "no-store",
         headers: {
@@ -94,15 +104,13 @@ export function InventoryManagement() {
 
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Products fetched successfully:", data)
         const productsArray = Array.isArray(data) ? data : []
         setProducts(productsArray)
       } else {
-        console.error("[v0] Failed to fetch products:", response.status)
         throw new Error(`HTTP ${response.status}: Error fetching products`)
       }
     } catch (error) {
-      console.error("[v0] Error al cargar productos:", error)
+      console.error("Error al cargar productos:", error)
       toast({
         title: "Error de productos",
         description: "No se pudieron cargar los productos disponibles.",
@@ -150,7 +158,6 @@ export function InventoryManagement() {
       })
 
       if (response.ok) {
-        const result = await response.json()
         toast({
           title: editingRecord ? "Registro actualizado" : "Registro creado",
           description: editingRecord ? "El registro se actualizó exitosamente" : "El registro se creó exitosamente",
@@ -236,13 +243,8 @@ export function InventoryManagement() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
-          Gestión de Inventario
-        </h2>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105"
-        >
+        <h2 className="text-2xl font-bold text-rose-600">Gestión de Inventario</h2>
+        <Button onClick={() => setShowForm(true)} className="bg-rose-500 hover:bg-rose-600">
           <Plus className="w-4 h-4 mr-2" />
           Nueva Compra
         </Button>
@@ -264,84 +266,105 @@ export function InventoryManagement() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {inventory.map((record) => (
-            <Card key={record.id} className="group hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg line-clamp-2 group-hover:text-rose-600 transition-colors flex items-center gap-2">
-                    <Package className="w-4 h-4" />
-                    {record.product_name}
-                  </CardTitle>
-                  <Badge variant="outline">Stock: {record.current_stock}</Badge>
-                </div>
-                {record.product_brand && <p className="text-sm text-muted-foreground">{record.product_brand}</p>}
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Costo</div>
-                    <div className="text-lg font-bold text-red-600">C${record.purchase_price}</div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedInventory.map((record) => (
+              <Card key={record.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Package className="w-4 h-4" />
+                      {record.product_name}
+                    </CardTitle>
+                    <Badge variant="outline">Stock: {record.current_stock}</Badge>
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Venta</div>
-                    <div className="text-lg font-bold text-green-600">C${record.selling_price}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Ganancia/Unidad</div>
-                    <div className="text-sm font-semibold text-green-600">C${record.profit_per_unit}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Margen</div>
-                    <div className={`text-sm font-semibold ${getProfitColor(record.profit_margin_percent || 0)}`}>
-                      {typeof record.profit_margin_percent === "number"
-                        ? record.profit_margin_percent.toFixed(1)
-                        : "0.0"}
-                      %
+                  {record.product_brand && <p className="text-sm text-muted-foreground">{record.product_brand}</p>}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Costo</div>
+                      <div className="text-lg font-bold text-red-600">C${record.purchase_price}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Venta</div>
+                      <div className="text-lg font-bold text-green-600">C${record.selling_price}</div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3" />
-                  Comprado: {new Date(record.purchase_date).toLocaleDateString()}
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Ganancia/Unidad</div>
+                      <div className="text-sm font-semibold text-green-600">C${record.profit_per_unit}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Margen</div>
+                      <div className={`text-sm font-semibold ${getProfitColor(record.profit_margin_percent || 0)}`}>
+                        {typeof record.profit_margin_percent === "number"
+                          ? record.profit_margin_percent.toFixed(1)
+                          : "0.0"}
+                        %
+                      </div>
+                    </div>
+                  </div>
 
-                {record.supplier_name && (
-                  <div className="text-xs text-muted-foreground">Proveedor: {record.supplier_name}</div>
-                )}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Calendar className="w-3 h-3" />
+                    Comprado: {new Date(record.purchase_date).toLocaleDateString()}
+                  </div>
 
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(record)}
-                    className="flex-1 hover:bg-rose-50 hover:border-rose-300 transition-colors"
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(record.id)}
-                    className="text-destructive hover:text-destructive hover:bg-red-50 hover:border-red-300 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  {record.supplier_name && (
+                    <div className="text-xs text-muted-foreground">Proveedor: {record.supplier_name}</div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(record)} className="flex-1">
+                      <Edit className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(record.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {!loading && inventory.length === 0 && (
         <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gradient-to-br from-rose-100 to-pink-100 rounded-full flex items-center justify-center mb-4 mx-auto">
+          <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4 mx-auto">
             <Package className="h-8 w-8 text-rose-500" />
           </div>
           <h3 className="text-lg font-semibold mb-2">No hay registros de inventario</h3>
@@ -351,13 +374,10 @@ export function InventoryManagement() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleCloseForm} />
+          <div className="absolute inset-0 bg-black/50" onClick={handleCloseForm} />
 
-          {/* Modal Content */}
           <div className="relative bg-background rounded-lg border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-rose-50 to-pink-50 p-6 border-b">
+            <div className="bg-rose-50 p-6 border-b">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-semibold">
@@ -381,7 +401,6 @@ export function InventoryManagement() {
               </div>
             </div>
 
-            {/* Form */}
             <div className="p-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>

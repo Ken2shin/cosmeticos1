@@ -12,7 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Plus } from "lucide-react"
 import { FileUpload } from "@/components/upload/file-upload"
 import { CurrencySelector } from "./currency-selector"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import type { Product } from "@/types/product"
 
@@ -365,10 +372,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                   <DialogContent aria-describedby="new-category-description">
                     <DialogHeader>
                       <DialogTitle>Nueva Categoría</DialogTitle>
+                      <DialogDescription id="new-category-description">
+                        Crea una nueva categoría para organizar tus productos.
+                      </DialogDescription>
                     </DialogHeader>
-                    <p id="new-category-description" className="text-sm text-muted-foreground">
-                      Crea una nueva categoría para organizar tus productos.
-                    </p>
                     <div className="space-y-4">
                       <Input
                         placeholder="Nombre de la categoría"
