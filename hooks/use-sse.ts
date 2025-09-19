@@ -17,7 +17,7 @@ export function useSSE(url: string) {
 
     try {
       if (!url || typeof url !== "string") {
-        console.error("[SSE] Invalid URL provided:", url)
+        console.warn("[SSE] Invalid URL provided, skipping connection")
         return
       }
 
@@ -35,12 +35,12 @@ export function useSSE(url: string) {
           const data = JSON.parse(event.data)
           setLastMessage(data)
         } catch (error) {
-          console.error("[SSE] Error parsing message:", error)
+          console.warn("[SSE] Error parsing message:", error)
         }
       }
 
       eventSource.onerror = (error) => {
-        console.error("[SSE] Connection error:", error)
+        console.warn("[SSE] Connection error, attempting to reconnect...")
         setIsConnected(false)
 
         if (eventSource.readyState === EventSource.CLOSED) {
@@ -55,20 +55,15 @@ export function useSSE(url: string) {
           reconnectAttempts.current++
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
 
-          console.log(
-            `[SSE] Scheduling reconnect attempt ${reconnectAttempts.current}/${maxReconnectAttempts} in ${delay}ms`,
-          )
-
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log(`[SSE] Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})`)
             connect()
           }, delay)
         } else {
-          console.log("[SSE] Max reconnection attempts reached, giving up")
+          console.log("[SSE] Max reconnection attempts reached")
         }
       }
     } catch (error) {
-      console.error("[SSE] Failed to create EventSource:", error)
+      console.warn("[SSE] Failed to create EventSource, will retry later")
       setIsConnected(false)
     }
   }

@@ -15,12 +15,14 @@ if (databaseUrl) {
   }
 } else {
   console.warn("[v0] No valid DATABASE_URL found, using mock database functions")
+  console.warn("[v0] To fix this: Add DATABASE_URL=postgresql://... to your environment variables")
   sql = createMockSql()
 }
 
 function createMockSql() {
   const mockSql = (...args: any[]) => {
     console.warn("[Database] Mock SQL called - no real database connection")
+    console.warn("[Database] Add DATABASE_URL environment variable to connect to real database")
     return Promise.resolve([])
   }
 
@@ -36,6 +38,7 @@ function createMockSql() {
 export async function testConnection() {
   if (!databaseUrl) {
     console.warn("[v0] Cannot test connection - no DATABASE_URL configured")
+    console.warn("[v0] Add DATABASE_URL=postgresql://username:password@host:port/database to your .env.local file")
     return false
   }
 
@@ -58,6 +61,7 @@ export function isDatabaseAvailable(): boolean {
 export async function safeQuery(queryFn: () => Promise<any>, fallback: any = []) {
   if (!isDatabaseAvailable()) {
     console.warn("[Database] No database available, returning fallback")
+    console.warn("[Database] To connect to real database, add DATABASE_URL environment variable")
     return fallback
   }
 

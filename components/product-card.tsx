@@ -17,7 +17,6 @@ export function ProductCard({ product }: ProductCardProps) {
   const [isLiked, setIsLiked] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [fallbackAttempts, setFallbackAttempts] = useState(0)
   const [localStock, setLocalStock] = useState(product.stock_quantity)
   const { dispatch } = useCart()
 
@@ -34,7 +33,6 @@ export function ProductCard({ product }: ProductCardProps) {
     if (localStock > 0) {
       const newStock = localStock - 1
       setLocalStock(newStock)
-      console.log("[v0] Local stock decremented:", product.name, "New stock:", newStock)
 
       window.dispatchEvent(
         new CustomEvent("stockUpdated", {
@@ -47,52 +45,19 @@ export function ProductCard({ product }: ProductCardProps) {
   }
 
   const getImageUrl = () => {
-    console.log(
-      "[v0] Client ProductCard - Getting image for:",
-      product.name,
-      "URL:",
-      product.image_url,
-      "Error:",
-      imageError,
-      "Attempts:",
-      fallbackAttempts,
-    )
-
-    // Strategy 1: Use original image_url if available and no error
-    if (product.image_url && !imageError && fallbackAttempts === 0) {
-      // Check if it's a blob URL, base64, or absolute URL
-      if (
-        product.image_url.startsWith("data:") ||
-        product.image_url.includes("blob.vercel-storage.com") ||
-        product.image_url.startsWith("http")
-      ) {
-        return product.image_url
-      }
-      // If it's already a placeholder URL, use it
-      if (product.image_url.includes("placeholder.svg")) {
-        return product.image_url
-      }
-      // For relative paths, convert to placeholder
-      return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`
+    // If we have a valid image URL from database, use it
+    if (product.image_url && !imageError) {
+      return product.image_url
     }
 
-    // Strategy 2: Enhanced placeholder with product details for production
-    const enhancedPlaceholder = `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(
-      product.name + " " + (product.category || "beauty") + " cosmetic product",
-    )}&color=f472b6&bg=fdf2f8&text=${encodeURIComponent(product.name.substring(0, 20))}`
-
-    return enhancedPlaceholder
+    // Fallback to placeholder only if no image or error occurred
+    const productQuery = encodeURIComponent(`${product.name} ${product.category || "beauty"} cosmetic product`)
+    return `/placeholder.svg?height=300&width=300&query=${productQuery}&color=f472b6&bg=fdf2f8`
   }
 
   const handleImageError = () => {
-    console.log("[v0] Client ProductCard - Image error for:", product.name, "Attempts:", fallbackAttempts)
-    setFallbackAttempts((prev) => prev + 1)
+    console.log("[v0] Image error for product:", product.name, "URL:", product.image_url)
     setImageError(true)
-
-    // Force re-render with new fallback
-    setTimeout(() => {
-      setImageError(false)
-    }, 100)
   }
 
   return (
@@ -114,18 +79,6 @@ export function ProductCard({ product }: ProductCardProps) {
                 backgroundColor: "#fdf2f8",
               }}
             />
-            {/* Fallback overlay if image fails */}
-            {imageError && fallbackAttempts > 2 && (
-              <div className="absolute inset-0 bg-gradient-to-br from-pink-100 to-rose-200 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <div className="w-16 h-16 mx-auto mb-2 bg-pink-200 rounded-full flex items-center justify-center">
-                    <ShoppingCart className="w-8 h-8 text-pink-600" />
-                  </div>
-                  <p className="text-sm font-medium text-pink-800">{product.name}</p>
-                  <p className="text-xs text-pink-600">{product.category}</p>
-                </div>
-              </div>
-            )}
           </div>
 
           <Badge className="absolute top-3 right-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white border-0 animate-pulse">

@@ -12,8 +12,8 @@ interface ProductGridProps {
 export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -21,40 +21,29 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
 
   const fetchProducts = useCallback(async () => {
     try {
-      console.log("[v0] Client: Fetching products for catalog display...")
-      setError(null)
       setLoading(true)
+      setError(null)
 
-      const timestamp = Date.now()
-      const response = await fetch(`/api/products?t=${timestamp}`, {
+      const response = await fetch(`/api/products?t=${Date.now()}`, {
         cache: "no-store",
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
         },
       })
 
-      console.log("[v0] Client: API response status:", response.status)
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data)
+        } else {
+          setProducts([])
+        }
+      } else {
+        setError(`Error loading products: ${response.status}`)
+        setProducts([])
       }
-
-      const data = await response.json()
-      console.log("[v0] Client: Raw API data:", data)
-
-      const validProducts = Array.isArray(data) ? data : []
-      console.log("[v0] Client: Products fetched for catalog:", validProducts.length)
-      console.log(
-        "[v0] Client: Product names:",
-        validProducts.map((p) => p.name),
-      )
-
-      setProducts(validProducts)
     } catch (error) {
-      console.error("[v0] Client: Error fetching products:", error)
-      setError("Error al cargar productos")
+      setError("Failed to load products")
       setProducts([])
     } finally {
       setLoading(false)
@@ -67,91 +56,44 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     }
   }, [fetchProducts, mounted])
 
-  useEffect(() => {
-    if (!mounted) return
-
-    const handleProductUpdate = () => {
-      fetchProducts()
-    }
-
-    const handleStockUpdate = (event: CustomEvent<{ productId: number | string; newStock: number }>) => {
-      const { productId, newStock } = event.detail
-      setProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product.id === productId ? { ...product, stock_quantity: newStock } : product,
-        ),
-      )
-    }
-
-    const handleProductDeleted = (event: CustomEvent<{ productId: number | string }>) => {
-      const { productId } = event.detail
-      setProducts((prevProducts) => prevProducts.filter((product) => product.id !== productId))
-    }
-
-    const events = [
-      { name: "productCreated" as const, handler: handleProductUpdate },
-      { name: "productDeleted" as const, handler: handleProductDeleted },
-      { name: "productUpdated" as const, handler: handleProductUpdate },
-      { name: "stockUpdated" as const, handler: handleStockUpdate },
-      { name: "inventoryChanged" as const, handler: handleProductUpdate },
-    ]
-
-    events.forEach(({ name, handler }) => {
-      window.addEventListener(name, handler as EventListener)
-    })
-
-    return () => {
-      events.forEach(({ name, handler }) => {
-        window.removeEventListener(name, handler as EventListener)
-      })
-    }
-  }, [fetchProducts, mounted])
-
   const filteredProducts = useMemo(() => {
-    const validProducts = Array.isArray(products) ? products : []
-    console.log("[v0] Client: Filtering products. Total:", validProducts.length, "Selected category:", selectedCategory)
+    if (!products.length) {
+      return []
+    }
 
-    const filtered = validProducts.filter((product) => {
-      if (!product || typeof product !== "object") return false
+    const filtered = products.filter((product) => {
+      if (!product) return false
 
-      const categoryMatch = true // Force all products to show
+      const categoryMatch =
+        selectedCategory === "Todos" ||
+        selectedCategory === "all" ||
+        selectedCategory === "" ||
+        !selectedCategory ||
+        (product.category && product.category.toLowerCase().includes(selectedCategory.toLowerCase())) ||
+        (product.name && product.name.toLowerCase().includes(selectedCategory.toLowerCase()))
 
+      // Search filtering
       const searchMatch =
+        !searchTerm ||
         searchTerm === "" ||
         (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (product.brand && product.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
 
-      console.log("[v0] Client: Product:", product.name, "Category match:", categoryMatch, "Search match:", searchMatch)
       return categoryMatch && searchMatch
     })
 
-    console.log("[v0] Client: Filtered products count:", filtered.length)
     return filtered
   }, [products, selectedCategory, searchTerm])
 
-  if (!mounted) {
+  if (!mounted || loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="animate-pulse">
-            <div className="bg-gray-200 rounded-lg h-48 sm:h-64 mb-4"></div>
-            <div className="bg-gray-200 rounded h-4 mb-2"></div>
-            <div className="bg-gray-200 rounded h-4 w-2/3"></div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="animate-pulse">
-            <div className="bg-gray-200 rounded-lg h-48 sm:h-64 mb-4"></div>
-            <div className="bg-gray-200 rounded h-4 mb-2"></div>
-            <div className="bg-gray-200 rounded h-4 w-2/3"></div>
+            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded-lg h-48 sm:h-64 mb-4"></div>
+            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded h-4 mb-2"></div>
+            <div className="bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-shimmer rounded h-4 w-2/3"></div>
           </div>
         ))}
       </div>
@@ -161,10 +103,11 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   if (error) {
     return (
       <div className="text-center py-12">
-        <div className="text-red-500 text-lg mb-4">{error}</div>
+        <p className="text-red-500 text-lg mb-2">Error al cargar productos</p>
+        <p className="text-gray-400 text-sm mb-4">{error}</p>
         <button
           onClick={fetchProducts}
-          className="px-4 py-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors"
+          className="px-4 py-2 bg-pink-500 text-white rounded hover:bg-pink-600 transition-colors"
         >
           Reintentar
         </button>
@@ -172,20 +115,25 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     )
   }
 
-  const validFilteredProducts = Array.isArray(filteredProducts) ? filteredProducts : []
-  console.log("[v0] Client: Final products to render:", validFilteredProducts.length)
-
-  if (validFilteredProducts.length === 0) {
+  if (!filteredProducts.length) {
     return (
       <div className="text-center py-12">
-        <div className="text-gray-500 text-lg">No se encontraron productos</div>
+        <p className="text-gray-500 text-lg">No se encontraron productos</p>
+        <p className="text-gray-400 text-sm mt-2">
+          {selectedCategory !== "Todos" && selectedCategory !== "all"
+            ? `No hay productos en la categoría "${selectedCategory}"`
+            : "No hay productos disponibles"}
+        </p>
+        {products.length === 0 && (
+          <p className="text-gray-400 text-xs mt-2">Verifica que la base de datos esté configurada correctamente</p>
+        )}
       </div>
     )
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {validFilteredProducts.map((product, index) => {
+      {filteredProducts.map((product, index) => {
         if (!product || !product.id) return null
 
         return (

@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
 import { sql, isDatabaseAvailable, safeQuery } from "@/lib/db"
 
-export const dynamic = "force-dynamic"
-
-// Define the Product type
+// Define the Product type with sku
 interface Product {
   id: number | string
+  sku: string
   name: string
   description: string | null
   price: number
@@ -18,6 +17,8 @@ interface Product {
   updated_at: string
 }
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   try {
     console.log("[v0] API: Fetching products with stock data")
@@ -26,6 +27,7 @@ export async function GET() {
       return await sql`
         SELECT 
           id,
+          sku, -- Added sku to the query
           name,
           description,
           price,
@@ -48,6 +50,7 @@ export async function GET() {
       finalProducts = [
         {
           id: 1,
+          sku: "LAB-001", // Added sku
           name: "Labial Mate Rosa",
           description: "Labial de larga duración con acabado mate",
           price: 25.99,
@@ -61,6 +64,7 @@ export async function GET() {
         },
         {
           id: 2,
+          sku: "BAS-002", // Added sku
           name: "Base Líquida Natural",
           description: "Base de maquillaje con cobertura natural",
           price: 45.5,
@@ -74,6 +78,7 @@ export async function GET() {
         },
         {
           id: 3,
+          sku: "MAS-003", // Added sku
           name: "Máscara de Pestañas",
           description: "Máscara voluminizadora resistente al agua",
           price: 32.0,
@@ -89,25 +94,30 @@ export async function GET() {
       console.log("[v0] Providing sample products for client display")
     }
 
-    const validatedProducts = finalProducts.map((product: Product) => ({
-      ...product,
-      id: product.id || Math.random(),
-      name: product.name || "Producto sin nombre",
-      description: product.description || "Sin descripción",
-      price: Number(product.price) || 0,
-      stock_quantity: Math.max(0, Number(product.stock_quantity) || 0),
-      brand: product.brand || "Sin marca",
-      category: product.category || "general",
-      image_url:
-        product.image_url && product.image_url.startsWith("http")
-          ? product.image_url
-          : product.image_url && product.image_url.includes("placeholder.svg")
-            ? product.image_url
-            : `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`,
-      is_active: Boolean(product.is_active),
-      created_at: product.created_at || new Date().toISOString(),
-      updated_at: product.updated_at || new Date().toISOString(),
-    }))
+    const validatedProducts = finalProducts.map((product: Product) => {
+      // Preserve the original image_url from database if it exists and is valid
+      let imageUrl = product.image_url
+
+      // Only generate placeholder if no image_url exists or it's empty
+      if (!imageUrl || imageUrl.trim() === "") {
+        imageUrl = `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`
+      }
+
+      return {
+        ...product,
+        id: product.id || Math.random(),
+        name: product.name || "Producto sin nombre",
+        description: product.description || "Sin descripción",
+        price: Number(product.price) || 0,
+        stock_quantity: Math.max(0, Number(product.stock_quantity) || 0),
+        brand: product.brand || "Sin marca",
+        category: product.category || "general",
+        image_url: imageUrl, // Use the preserved or generated URL
+        is_active: Boolean(product.is_active),
+        created_at: product.created_at || new Date().toISOString(),
+        updated_at: product.updated_at || new Date().toISOString(),
+      }
+    })
 
     console.log(
       "[v0] API: Returning products:",
@@ -133,6 +143,7 @@ export async function GET() {
     const sampleProducts: Product[] = [
       {
         id: 1,
+        sku: "SAM-001", // Added sku
         name: "Producto de Muestra",
         description: "Producto de ejemplo mientras se resuelven los problemas de conexión",
         price: 29.99,
@@ -162,7 +173,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, description, price, stock_quantity, brand, category, image_url } = body as {
+    const { name, description, price, stock_quantity, brand, category, image_url, sku } = body as {
       name: string
       description?: string | null
       price: number
@@ -170,6 +181,7 @@ export async function POST(request: Request) {
       brand?: string | null
       category?: string | null
       image_url?: string | null
+      sku?: string
     }
 
     if (!name || !price) {
@@ -178,8 +190,8 @@ export async function POST(request: Request) {
 
     const result = await safeQuery(async () => {
       return await sql`
-        INSERT INTO products (name, description, price, stock_quantity, brand, category, image_url, is_active)
-        VALUES (${name}, ${description || null}, ${price}, ${stock_quantity || 0}, ${brand || null}, ${category || null}, ${image_url || null}, true)
+        INSERT INTO products (name, description, price, stock_quantity, brand, category, image_url, is_active, sku)
+        VALUES (${name}, ${description || null}, ${price}, ${stock_quantity || 0}, ${brand || null}, ${category || null}, ${image_url || null}, true, ${sku || null})
         RETURNING *
       `
     }, []) as Product[]
