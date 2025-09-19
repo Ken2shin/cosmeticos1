@@ -84,20 +84,25 @@ export function InventoryManagement() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await fetch("/api/products", {
+      console.log("[v0] Fetching products for management...")
+      const response = await fetch("/api/admin/products", {
         cache: "no-store",
         headers: {
           "Cache-Control": "no-cache",
         },
       })
+
       if (response.ok) {
         const data = await response.json()
-        setProducts(Array.isArray(data) ? data : [])
+        console.log("[v0] Products fetched successfully:", data)
+        const productsArray = Array.isArray(data) ? data : []
+        setProducts(productsArray)
       } else {
+        console.error("[v0] Failed to fetch products:", response.status)
         throw new Error(`HTTP ${response.status}: Error fetching products`)
       }
     } catch (error) {
-      console.error("Error al cargar productos:", error)
+      console.error("[v0] Error al cargar productos:", error)
       toast({
         title: "Error de productos",
         description: "No se pudieron cargar los productos disponibles.",
@@ -392,13 +397,15 @@ export function InventoryManagement() {
                     <SelectContent>
                       {Array.isArray(memoizedProducts) && memoizedProducts.length > 0 ? (
                         memoizedProducts.map((product) => (
-                          <SelectItem key={product.id} value={product.id.toString()}>
+                          <SelectItem key={`product-${product.id}`} value={product.id.toString()}>
                             {product.name} {product.brand && `- ${product.brand}`}
                           </SelectItem>
                         ))
                       ) : (
                         <SelectItem value="no-products-available" disabled>
-                          {memoizedProducts.length === 0 ? "No hay productos disponibles" : "Cargando productos..."}
+                          {Array.isArray(memoizedProducts) && memoizedProducts.length === 0
+                            ? "No hay productos disponibles"
+                            : "Cargando productos..."}
                         </SelectItem>
                       )}
                     </SelectContent>
