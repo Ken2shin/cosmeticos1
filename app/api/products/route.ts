@@ -3,15 +3,16 @@ import { sql, isDatabaseAvailable, safeQuery } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
+// Define the Product type
 interface Product {
   id: number | string
   name: string
-  description: string
+  description: string | null
   price: number
   stock_quantity: number
-  brand: string
-  category: string
-  image_url: string
+  brand: string | null
+  category: string | null
+  image_url: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -39,9 +40,9 @@ export async function GET() {
         WHERE is_active = true
         ORDER BY created_at DESC
       `
-    }, [])
+    }, []) as Product[]
 
-    let finalProducts = products
+    let finalProducts: Product[] = products
     if (!products || products.length === 0) {
       console.log("[v0] No products found in database, providing sample products")
       finalProducts = [
@@ -53,7 +54,7 @@ export async function GET() {
           stock_quantity: 10,
           brand: "Beauty Co",
           category: "labial",
-          image_url: "/pink-matte-lipstick.jpg",
+          image_url: "/labial-mate-rosa-beauty-product.jpg",
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -66,7 +67,7 @@ export async function GET() {
           stock_quantity: 8,
           brand: "Marbellin",
           category: "marbellin",
-          image_url: "/liquid-foundation-natural.jpg",
+          image_url: "/base-liquida-natural-foundation.jpg",
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -79,7 +80,7 @@ export async function GET() {
           stock_quantity: 15,
           brand: "Beauty Co",
           category: "ojos",
-          image_url: "/mascara-pesta-as-beauty.jpg",
+          image_url: "/mascara-pestanas-beauty-product.jpg",
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -97,7 +98,12 @@ export async function GET() {
       stock_quantity: Math.max(0, Number(product.stock_quantity) || 0),
       brand: product.brand || "Sin marca",
       category: product.category || "general",
-      image_url: product.image_url || "/beauty-product-display.png",
+      image_url:
+        product.image_url && product.image_url.startsWith("http")
+          ? product.image_url
+          : product.image_url && product.image_url.includes("placeholder.svg")
+            ? product.image_url
+            : `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`,
       is_active: Boolean(product.is_active),
       created_at: product.created_at || new Date().toISOString(),
       updated_at: product.updated_at || new Date().toISOString(),
@@ -109,6 +115,7 @@ export async function GET() {
         name: p.name,
         stock: p.stock_quantity,
         active: p.is_active,
+        image: p.image_url,
       })),
     )
 
@@ -123,7 +130,7 @@ export async function GET() {
     })
   } catch (error) {
     console.error("[v0] API: Error fetching products:", error)
-    const sampleProducts = [
+    const sampleProducts: Product[] = [
       {
         id: 1,
         name: "Producto de Muestra",
@@ -132,7 +139,7 @@ export async function GET() {
         stock_quantity: 5,
         brand: "Sample Brand",
         category: "labial",
-        image_url: "/beauty-product-sample.jpg",
+        image_url: "/producto-muestra-beauty.jpg",
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -155,7 +162,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, description, price, stock_quantity, brand, category, image_url } = body
+    const { name, description, price, stock_quantity, brand, category, image_url } = body as {
+      name: string
+      description?: string | null
+      price: number
+      stock_quantity?: number
+      brand?: string | null
+      category?: string | null
+      image_url?: string | null
+    }
 
     if (!name || !price) {
       return NextResponse.json({ error: "Name and price are required" }, { status: 400 })
@@ -167,7 +182,7 @@ export async function POST(request: Request) {
         VALUES (${name}, ${description || null}, ${price}, ${stock_quantity || 0}, ${brand || null}, ${category || null}, ${image_url || null}, true)
         RETURNING *
       `
-    }, [])
+    }, []) as Product[]
 
     if (result.length === 0) {
       return NextResponse.json({ error: "Failed to create product" }, { status: 500 })

@@ -60,21 +60,26 @@ export function ProductCard({ product }: ProductCardProps) {
 
     // Strategy 1: Use original image_url if available and no error
     if (product.image_url && !imageError && fallbackAttempts === 0) {
-      // Check if it's a blob URL or base64
-      if (product.image_url.startsWith("data:") || product.image_url.includes("blob.vercel-storage.com")) {
+      // Check if it's a blob URL, base64, or absolute URL
+      if (
+        product.image_url.startsWith("data:") ||
+        product.image_url.includes("blob.vercel-storage.com") ||
+        product.image_url.startsWith("http")
+      ) {
         return product.image_url
       }
-      // If it's a placeholder URL, enhance it
+      // If it's already a placeholder URL, use it
       if (product.image_url.includes("placeholder.svg")) {
-        return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`
+        return product.image_url
       }
-      return product.image_url
+      // For relative paths, convert to placeholder
+      return `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(product.name + " " + (product.category || "beauty") + " product")}&color=f472b6&bg=fdf2f8`
     }
 
-    // Strategy 2: Enhanced placeholder with product details
+    // Strategy 2: Enhanced placeholder with product details for production
     const enhancedPlaceholder = `/placeholder.svg?height=300&width=300&query=${encodeURIComponent(
       product.name + " " + (product.category || "beauty") + " cosmetic product",
-    )}&color=f472b6&bg=fdf2f8&text=${encodeURIComponent(product.name)}`
+    )}&color=f472b6&bg=fdf2f8&text=${encodeURIComponent(product.name.substring(0, 20))}`
 
     return enhancedPlaceholder
   }
