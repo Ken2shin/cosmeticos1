@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,7 +11,6 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Plus } from "lucide-react"
 import { FileUpload } from "@/components/upload/file-upload"
-import { CurrencySelector } from "./currency-selector"
 import {
   Dialog,
   DialogContent,
@@ -93,7 +92,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }, [product])
 
   const uploadFile = async (file: File): Promise<string> => {
-    console.log(`[v0] Uploading file: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`)
+    console.log(`[v0] Uploading file: ${file.name}`)
 
     const formData = new FormData()
     formData.append("file", file)
@@ -105,18 +104,14 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       })
 
       if (!response.ok) {
-        console.error("[v0] Upload failed:", response.status)
-        const fallbackUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(file.name.split(".")[0] + " beauty cosmetic product")}`
-        return fallbackUrl
+        throw new Error(`Upload failed: ${response.status}`)
       }
 
       const result = await response.json()
-      console.log("[v0] Upload successful:", result.url)
       return result.url
     } catch (error) {
       console.error("[v0] Upload error:", error)
-      const emergencyUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent("beauty cosmetic product " + Date.now())}`
-      return emergencyUrl
+      return `/placeholder.svg?height=400&width=400&query=${encodeURIComponent("beauty cosmetic product")}`
     }
   }
 
@@ -150,14 +145,11 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
     }
   }
 
-  const generateSKU = () => {
-    const prefix = formData.name.substring(0, 3).toUpperCase()
-    const timestamp = Date.now().toString().slice(-6)
-    const randomNum = Math.floor(Math.random() * 100)
-      .toString()
-      .padStart(2, "0")
-    return `${prefix}${timestamp}${randomNum}`
-  }
+  const generateSKU = useMemo(() => {
+    const prefix = formData.name.substring(0, 3).toUpperCase() || "PRD"
+    const timestamp = Date.now().toString().slice(-4)
+    return `${prefix}${timestamp}`
+  }, [formData.name])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,29 +161,30 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
 
       if (selectedFile) {
         try {
-          console.log("[v0] Uploading selected file")
           imageUrl = await uploadFile(selectedFile)
           if (selectedFile && typeof window !== "undefined") {
             URL.revokeObjectURL(URL.createObjectURL(selectedFile))
           }
         } catch (uploadError) {
-          console.error("[v0] Upload failed, using placeholder:", uploadError)
-          imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
+          console.error("[v0] Upload failed:", uploadError)
+          imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty product")}`
         }
       } else if (!imageUrl) {
-        imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty cosmetic product")}`
+        imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(formData.name + " beauty product")}`
       }
-
-      const finalSKU = formData.sku.trim() || generateSKU()
 
       const productData = {
-        ...formData,
-        image_url: imageUrl,
+        name: formData.name,
+        description: formData.description,
         price: Number.parseFloat(formData.price),
-        sku: finalSKU,
+        category: formData.category,
+        brand: formData.brand,
+        image_url: imageUrl,
+        is_active: formData.is_active,
+        stock_quantity: 0, // Default stock quantity
       }
 
-      console.log("[v0] Submitting product data:", { ...productData, image_url: imageUrl ? "present" : "missing" })
+      console.log("[v0] Submitting product data:", productData)
 
       const url = product ? `/api/admin/products/${product.id}` : "/api/admin/products"
       const method = product ? "PUT" : "POST"
@@ -211,25 +204,13 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
       const savedProduct = await response.json()
       console.log("[v0] Product saved successfully:", savedProduct.id)
 
-      if (product) {
-        window.dispatchEvent(new CustomEvent("productUpdated", { detail: savedProduct }))
-        toast({
-          title: "¡Producto actualizado!",
-          description: `${formData.name} se ha actualizado exitosamente.`,
-          variant: "default",
-        })
-      } else {
-        window.dispatchEvent(new CustomEvent("productCreated", { detail: savedProduct }))
-        toast({
-          title: "¡Producto creado!",
-          description: `${formData.name} se ha creado exitosamente y está disponible en el catálogo.`,
-          variant: "default",
-        })
-      }
+      toast({
+        title: product ? "¡Producto actualizado!" : "¡Producto creado!",
+        description: `${formData.name} se ha ${product ? "actualizado" : "creado"} exitosamente.`,
+        variant: "default",
+      })
 
-      setTimeout(() => {
-        onClose(true)
-      }, 50)
+      onClose(true)
     } catch (error) {
       console.error("[v0] Product form submission error:", error)
       toast({
@@ -243,20 +224,13 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-300 bg-background/95 backdrop-blur-sm border shadow-lg">
+    <Card className="max-w-2xl mx-auto bg-background border shadow-lg">
       <CardHeader className="bg-gradient-to-r from-rose-50 to-pink-50 border-b">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onClose(false)}
-            className="hover:scale-110 transition-transform"
-          >
+          <Button variant="ghost" size="icon" onClick={() => onClose(false)} className="hover:bg-gray-100">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <CardTitle className="bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
-            {product ? "Editar Producto" : "Nuevo Producto"}
-          </CardTitle>
+          <CardTitle className="text-rose-600">{product ? "Editar Producto" : "Nuevo Producto"}</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-6 bg-background">
@@ -268,32 +242,8 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
+                className="focus:ring-2 focus:ring-rose-500"
                 required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="sku">SKU (Código del Producto)</Label>
-              <Input
-                id="sku"
-                value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                placeholder="Se generará automáticamente si se deja vacío"
-                className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
               />
             </div>
 
@@ -303,12 +253,23 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                 id="brand"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
+                className="focus:ring-2 focus:ring-rose-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="focus:ring-2 focus:ring-rose-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="price">Precio</Label>
               <Input
@@ -330,17 +291,8 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                   }
                   setFormData({ ...formData, price: value })
                 }}
-                className="transition-all duration-200 focus:ring-2 focus:ring-rose-500"
+                className="focus:ring-2 focus:ring-rose-500"
                 required
-              />
-              <p className="text-xs text-muted-foreground">Precio máximo: $99,999,999.99</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Moneda</Label>
-              <CurrencySelector
-                value={formData.currency_code}
-                onValueChange={(value) => setFormData({ ...formData, currency_code: value })}
               />
             </div>
 
@@ -351,7 +303,7 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
                 >
-                  <SelectTrigger className="transition-all duration-200 focus:ring-2 focus:ring-rose-500">
+                  <SelectTrigger className="focus:ring-2 focus:ring-rose-500">
                     <SelectValue placeholder="Seleccionar categoría" />
                   </SelectTrigger>
                   <SelectContent>
@@ -435,19 +387,10 @@ export function ProductForm({ product, onClose }: ProductFormProps) {
           </div>
 
           <div className="flex gap-4">
-            <Button
-              type="submit"
-              className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-[1.02]"
-              disabled={uploading}
-            >
+            <Button type="submit" className="flex-1 bg-rose-500 hover:bg-rose-600" disabled={uploading}>
               {uploading ? "Guardando..." : product ? "Actualizar" : "Crear"} Producto
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onClose(false)}
-              className="hover:scale-105 transition-transform bg-transparent"
-            >
+            <Button type="button" variant="outline" onClick={() => onClose(false)}>
               Cancelar
             </Button>
           </div>

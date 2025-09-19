@@ -119,7 +119,6 @@ export async function POST(request: NextRequest) {
           stock_quantity, 
           image_url, 
           is_active,
-          sku,
           category
         )
         VALUES (
@@ -130,7 +129,6 @@ export async function POST(request: NextRequest) {
           ${productData.stock_quantity || 0}, 
           ${imageUrl}, 
           ${productData.is_active !== false},
-          ${productData.sku || `SKU-${Date.now()}`},
           ${productData.category || ""}
         )
         RETURNING *
@@ -142,15 +140,13 @@ export async function POST(request: NextRequest) {
     }
 
     const newProduct = result[0]
-    console.log("[v0] Product created successfully with image:", newProduct)
+    console.log("[v0] Product created successfully:", newProduct)
 
     try {
       const { notifyNewProduct } = await import("@/lib/sse-notifications")
       notifyNewProduct(newProduct)
-      console.log("[v0] Real-time SSE notification sent for new product")
-    } catch (sseError) {
-      console.error("[v0] SSE notification failed:", sseError)
-      // Don't fail the request if SSE fails
+    } catch {
+      // Silent fail for SSE to prevent crashes on low-end devices
     }
 
     return NextResponse.json(newProduct)
