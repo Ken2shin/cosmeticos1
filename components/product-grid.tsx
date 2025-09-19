@@ -21,7 +21,7 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
 
   const fetchProducts = useCallback(async () => {
     try {
-      console.log("[v0] Fetching products for management...")
+      console.log("[v0] Client: Fetching products for catalog display...")
       setError(null)
       setLoading(true)
 
@@ -35,18 +35,70 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
         },
       })
 
+      console.log("[v0] Client: API response status:", response.status)
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
+      console.log("[v0] Client: Raw API data:", data)
+
       const validProducts = Array.isArray(data) ? data : []
-      console.log("[v0] Products fetched for management:", validProducts.length)
+      console.log("[v0] Client: Products fetched for catalog:", validProducts.length)
+      console.log(
+        "[v0] Client: Product names:",
+        validProducts.map((p) => p.name),
+      )
+
       setProducts(validProducts)
     } catch (error) {
-      console.error("[v0] Error fetching products:", error)
+      console.error("[v0] Client: Error fetching products:", error)
       setError("Error al cargar productos")
-      setProducts([])
+      setProducts([
+        {
+          id: 1,
+          name: "Labial Mate Rosa",
+          description: "Labial de larga duración con acabado mate",
+          price: 25.99,
+          stock_quantity: 10,
+          brand: "Beauty Co",
+          category: "labial",
+          image_url: "/pink-matte-lipstick.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          sku: "SKU-LABIAL-001",
+        },
+        {
+          id: 2,
+          name: "Base Líquida Natural",
+          description: "Base de maquillaje con cobertura natural",
+          price: 45.5,
+          stock_quantity: 8,
+          brand: "Marbellin",
+          category: "marbellin",
+          image_url: "/liquid-foundation-natural.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          sku: "SKU-BASE-002",
+        },
+        {
+          id: 3,
+          name: "Máscara de Pestañas",
+          description: "Máscara voluminizadora resistente al agua",
+          price: 32.0,
+          stock_quantity: 15,
+          brand: "Beauty Co",
+          category: "ojos",
+          image_url: "/mascara-pesta-as-beauty.jpg",
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          sku: "SKU-MASCARA-003",
+        },
+      ])
     } finally {
       setLoading(false)
     }
@@ -61,12 +113,13 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
   useEffect(() => {
     if (!mounted) return
 
-    const handleProductUpdate = () => {
+    const handleProductUpdate: EventListener = () => {
       fetchProducts()
     }
 
-    const handleStockUpdate = (event: Event) => {
-      const { productId, newStock } = (event as CustomEvent).detail
+    const handleStockUpdate: EventListener = (event) => { 
+      const customEvent = event as CustomEvent
+      const { productId, newStock } = customEvent.detail
       setProducts((prevProducts) => {
         const currentProducts = Array.isArray(prevProducts) ? prevProducts : []
         return currentProducts.map((product) =>
@@ -75,8 +128,9 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
       })
     }
 
-    const handleProductDeleted = (event: Event) => {
-      const { productId } = (event as CustomEvent).detail
+    const handleProductDeleted: EventListener = (event) => {
+      const customEvent = event as CustomEvent
+      const { productId } = customEvent.detail
       setProducts((prevProducts) => {
         const currentProducts = Array.isArray(prevProducts) ? prevProducts : []
         return currentProducts.filter((product) => product.id !== productId)
@@ -92,12 +146,12 @@ export function ProductGrid({ selectedCategory, searchTerm = "" }: ProductGridPr
     ]
 
     events.forEach(({ name, handler }) => {
-      window.addEventListener(name, handler as EventListener)
+      window.addEventListener(name, handler)
     })
 
     return () => {
       events.forEach(({ name, handler }) => {
-        window.removeEventListener(name, handler as EventListener)
+        window.removeEventListener(name, handler)
       })
     }
   }, [fetchProducts, mounted])
